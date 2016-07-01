@@ -105,20 +105,6 @@ AllConnection.prototype.onOffer = function(sdpOffer, cb){
 	});
 }
 
-//when receive an spd answer
-AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
-	this.connection[sdpAnswer.remote].receiveAnswer(sdpAnswer.answer);
-}
-
-//when receive an ice candidate
-AllConnection.prototype.onCandidate = function(iceCandidate){
-	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
-}
-
-AllConnection.prototype.deleteConnection = function(peer){
-	this.connection[peer] = null;
-}
-
 //set the ICE server 
 AllConnection.prototype.setIceServer = function(iceServers){
 	this.iceServers = iceServers;
@@ -198,9 +184,28 @@ AllConnection.prototype.setLocalStream = function(stream){
 }
 
 AllConnection.prototype.stopForwarding = function(peer){
+	var self = this;
 	console.log("remove stream");
-	self.connection[peer].p2pConnection.removeStream(self.stream);
-	self.connection[peer].p2pConnection.close();
+	this.connection[peer].p2pConnection.removeStream(self.stream);
+	this.connection[peer].p2pConnection.close();
+}
+
+//when receive an spd answer
+AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
+	this.connection[sdpAnswer.remote].receiveAnswer(sdpAnswer.answer);
+}
+
+//when receive an ice candidate
+AllConnection.prototype.onCandidate = function(iceCandidate){
+	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
+}
+
+AllConnection.prototype.deleteConnection = function(peer){
+	var self = this;
+	this.connection[peer].p2pConnection.removeStream(self.stream);
+	this.connection[peer].p2pConnection.close();
+	this.connection[peer].p2pConnection = null;
+	this.connection[peer] = null;
 }
 
 module.exports = AllConnection;
@@ -7846,18 +7851,6 @@ function WebRTC(server){
 		self.allConnection.onCandidate(iceCandidate);
 	});
 
-//	when a user in the room disconnnected
-	self.socket.on("disconnectedUser", function(disConnectedUserName) {
-		console.log("user " + disConnectedUserName + " is disconnected");
-		self.onUserDisconnect(disConnectedUserName);
-		self.socket.emit("message", {
-			type: "message",
-			action: "leave",
-			user: self.user,
-			content: ""
-		});
-	});
-
 //	initialize 1 way peer connection or start host's camera
 	self.socket.on("initConnection", function(peer){
 		self.allConnection.initConnection(peer);
@@ -7869,8 +7862,9 @@ function WebRTC(server){
 	})
 
 //	delete peer connection when peer left
-	self.socket.on("deleteConnection", function(peer){
-		self.allConnection.deleteConnection(peer);
+	self.socket.on("deleteConnection", function(peerData){
+		console.log(peerData);
+		self.allConnection.deleteConnection(peerData.peer);
 		self.peer = null;
 	});
 
@@ -7886,7 +7880,7 @@ function WebRTC(server){
 			self.onAddVideo(userData.parent);
 		}
 	});
-	
+
 	self.socket.on("stopForwarding", function(peer){
 		self.allConnection.stopForwarding(peer);
 	});
@@ -7894,9 +7888,7 @@ function WebRTC(server){
 	self.socket.on("localStream", function(localStream){
 		self.setLocalStream(localStream.stream);
 	});
-
 }
-
 
 //find more details of following api in readme
 WebRTC.prototype.login = function(userName, successCallback, failCallback) {

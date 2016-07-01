@@ -224,7 +224,7 @@ func (g *Graph) GetDCMST(deg int) *Graph {
     var wt int = 0
     var mst *Graph
     var dcmst *Graph
-    var debug = true // For debug purpose enable this
+    var debug = false // For debug purpose enable this
     autos := make(map[string]*Automata)
     
     

@@ -270,7 +270,7 @@ status: "fail"
 		});	
 	});
 
-	socket.on("host", function(hostData){
+	socket.on("startBroadcasting", function(hostData){
 		console.log("received hostData");
 		console.log(hostData);
 		user[hostData.host].emit("initCamera"); 

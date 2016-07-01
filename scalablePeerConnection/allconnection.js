@@ -181,9 +181,10 @@ AllConnection.prototype.setLocalStream = function(stream){
 }
 
 AllConnection.prototype.stopForwarding = function(peer){
+	var self = this;
 	console.log("remove stream");
-	self.connection[peer].p2pConnection.removeStream(self.stream);
-	self.connection[peer].p2pConnection.close();
+	this.connection[peer].p2pConnection.removeStream(self.stream);
+	this.connection[peer].p2pConnection.close();
 }
 
 //when receive an spd answer
@@ -197,6 +198,10 @@ AllConnection.prototype.onCandidate = function(iceCandidate){
 }
 
 AllConnection.prototype.deleteConnection = function(peer){
+	var self = this;
+	this.connection[peer].p2pConnection.removeStream(self.stream);
+	this.connection[peer].p2pConnection.close();
+	this.connection[peer].p2pConnection = null;
 	this.connection[peer] = null;
 }
 

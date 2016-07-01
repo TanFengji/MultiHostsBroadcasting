@@ -88,8 +88,9 @@ function WebRTC(server){
 	})
 
 //	delete peer connection when peer left
-	self.socket.on("deleteConnection", function(peer){
-		self.allConnection.deleteConnection(peer);
+	self.socket.on("deleteConnection", function(peerData){
+		console.log(peerData);
+		self.allConnection.deleteConnection(peerData.peer);
 		self.peer = null;
 	});
 
@@ -105,7 +106,7 @@ function WebRTC(server){
 			self.onAddVideo(userData.parent);
 		}
 	});
-	
+
 	self.socket.on("stopForwarding", function(peer){
 		self.allConnection.stopForwarding(peer);
 	});
@@ -113,9 +114,7 @@ function WebRTC(server){
 	self.socket.on("localStream", function(localStream){
 		self.setLocalStream(localStream.stream);
 	});
-
 }
-
 
 //find more details of following api in readme
 WebRTC.prototype.login = function(userName, successCallback, failCallback) {
