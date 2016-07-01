@@ -224,7 +224,7 @@ func (g *Graph) GetDCMST(deg int) *Graph {
     var wt int = 0
     var mst *Graph
     var dcmst *Graph
-    var debug = false // For debug purpose enable this
+    var debug = true // For debug purpose enable this
     autos := make(map[string]*Automata)
     
     
@@ -239,10 +239,10 @@ func (g *Graph) GetDCMST(deg int) *Graph {
     
     // Start to generate a MST
     
-    var RECUR_LIMIT = 1000
+    var RECUR_LIMIT = 1000 
     var recur = 0
     var stable bool = false
-    
+    var found bool = false
     // Keep generating random MST for the graph until every automata becomes stable
     for !stable && recur < RECUR_LIMIT {
 	recur++
@@ -263,7 +263,7 @@ func (g *Graph) GetDCMST(deg int) *Graph {
 	}
 	// Entering into a random MST construction process
 	// Use a flag to denote if we have successfully constructed a mst
-	var found bool = false
+	found = false
 	
 	// Loop until a mst has been constructed. Note that we didn't check if 
 	// the parent is active. This means we have assumed that the head starts
@@ -280,6 +280,19 @@ func (g *Graph) GetDCMST(deg int) *Graph {
 	    if debug {
 		a.Print()
 	    }
+	    
+	    // Check if parent node is active first 
+	    isActive := a.IsActive()
+	    
+	    // If the head is not active, abort the search process, and start 
+	    // to search a new tree, this can happen during a backtrace when
+	    // all possibilities are tried
+	    if !isActive && parent == head {
+		if debug {
+		    fmt.Println("[DEBUG] Failed to find a MST. ")
+		}
+		break
+	    }
 	    // check if all of its children is inactive, if all of the children
 	    // automata are inactive then hasActive flag is false, otherwise true
 	    var hasActive bool = false
@@ -295,7 +308,7 @@ func (g *Graph) GetDCMST(deg int) *Graph {
 	    // If automata has active children, then start to enumerate, otherwise
 	    // it means that we have either reached a dead end, in which case we
 	    // need to backtrace the constructed tree and 
-	    if hasActive {
+	    if hasActive && isActive {
 		if debug {
 		    fmt.Println("[DEBUG] Found active nodes")
 		}
@@ -379,6 +392,9 @@ func (g *Graph) GetDCMST(deg int) *Graph {
 	    fmt.Printf("[DEBUG] RECUR_LIMIT %d is reached\n", RECUR_LIMIT)
 	}
     }
+    
+    // TODO: Error handling
+    
     return dcmst
 }
 

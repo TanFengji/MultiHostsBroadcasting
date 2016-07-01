@@ -52,3 +52,11 @@ func NewNode(val string) *Node {
     return &n
 }
 
+// HasNode function tells if a specific edge has a specific node associated 
+// with it
+func (e *Edge) HasNode(val string) bool {
+    if e.Parent.Value == val || e.Child.Value == val {
+	return true
+    }
+    return false
+}

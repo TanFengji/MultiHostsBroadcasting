@@ -57,15 +57,21 @@ func main () {
     }
     
     // Test DCMST
-    g1 := graph.GetDCMST(3)
+    fmt.Println("=========================")
+    fmt.Println("[DEBUG] START")
+    graph.Print()
+    g1 := graph.GetDCMST(1)
+    g1.Print()
     
     graph.AddNode("d")
     graph.AddUniEdge("a", "d", 1)
     graph.AddUniEdge("d", "c", 1)
     graph.AddUniEdge("d", "e", 1)
     
-    g2 := graph.GetDCMST(3)
-    g1.Print()
+    fmt.Println("========================")
+    fmt.Println("[DEBUG] START")
+    graph.Print()
+    g2 := graph.GetDCMST(1)
     g2.Print()
     
     as, rs := g2.Compare(g1)

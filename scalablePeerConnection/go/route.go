@@ -95,17 +95,16 @@ func handleRequests(con net.Conn, queue chan<- UserInfo) {
 }
 
 
-
 func handleTasks(queue <-chan UserInfo) {
     fmt.Println("handleTasks is working")
-
+    
     for {
 	userInfo := <- queue
 	
 	switch userInfo.Type {
-	case "newUser": newUserHandler(userInfo) 
-	case "host": newHostHandler(userInfo)
-	case "disconnectedUser": disconnectHandler(userInfo)
+	    case "newUser": newUserHandler(userInfo) 
+	    case "host": newHostHandler(userInfo)
+	    case "disconnectedUser": disconnectHandler(userInfo)
 	}
 	fmt.Printf("New task received -> Type: %s  User: %s  Room: %s\n", userInfo.Type, userInfo.User, userInfo.Room)
     }
@@ -119,16 +118,16 @@ func newUserHandler(userInfo UserInfo) {
     } else {
 	fmt.Println("ERR: newUserHandler - room doesn't exist")
     }
-	/* Send out instructions */
-	/* TODO: may need to separate out this part */
-	
-	// host := room.getHost()
+    /* Send out instructions */
+    /* TODO: may need to separate out this part */
+    
+    // host := room.getHost()
     //host := userInfo.Host
-	//if host.Role == "host" { 
+    //if host.Role == "host" { 
     //ins <- Instruction{Type:"newPeerConnection", Parent: host, Child: userInfo.User}
-	//} else {
-	    //fmt.Println("ERR: Host doesn't exist")
-	//}
+    //} else {
+    //fmt.Println("ERR: Host doesn't exist")
+    //}
 }
 
 func newHostHandler(userInfo UserInfo) {
@@ -144,15 +143,15 @@ func newHostHandler(userInfo UserInfo) {
     } else {
 	fmt.Println("ERR: newHostHandler - room already exists")
     }
-	/*
-	user := User{Name: userInfo.User, Role: "host"}
-	users := make([]User, 0)
-	users = append(users, user)
-	room := Room{ID: roomId, Users: users}
-	rooms[roomId] = room;
-	fmt.Println(room.getUsers())
-	ins <- Instruction{Type:"host", Host: user.Name}
-	*/
+    /*
+     *	user := User{Name: userInfo.User, Role: "host"}
+     *	users := make([]User, 0)
+     *	users = append(users, user)
+     *	room := Room{ID: roomId, Users: users}
+     *	rooms[roomId] = room;
+     *	fmt.Println(room.getUsers())
+     *	ins <- Instruction{Type:"host", Host: user.Name}
+     */
 }
 
 func disconnectHandler(userInfo UserInfo) {
@@ -172,78 +171,117 @@ func disconnectHandler(userInfo UserInfo) {
 	//}
 	
 	/*
-	if len(room.getUsers())==0 {
-	    delete(rooms, roomId)
-	}
-	*/
+	 *	if len(room.getUsers())==0 {
+	 *	    delete(rooms, roomId)
+    }
+    */
 	//fmt.Println(room.getUsers())
     } else {
 	fmt.Println("ERR: disconnectHandler - disconnecting from a room non-existing")
     }
 }
 
-func manageRoom(room <-chan UserInfo) {
-    //defer close(room)
+func manageRoom(room chan UserInfo) {
+    defer close(room)
     
     var graph = NewGraph() // TODO: implement Graph
     var tree = NewGraph()
+    var roomId string
     
     for {
 	userInfo := <- room
 	//fmt.Printf("[DEBUG] %v\n", userInfo.Host)
+	roomId = userInfo.Room
 	
 	switch userInfo.Type {
-	case "host": 
-	    username := userInfo.User
-	    graph.AddNode(username)
-	    graph.SetHead(username)
-	    ins <- Instruction{Type: "host", Host: username} 
-	    
-	    if userInfo.Latency != nil { // may be unnecessary
+	    case "host": 
+		username := userInfo.User
+		graph.AddNode(username)
+		graph.SetHead(username)
+		fmt.Println("New Room", roomId, "is created")
+		fmt.Println("Currently ", graph.GetTotalNodes(), "users are in the room")
+		ins <- Instruction{Type: "host", Host: username} 
+		
+		if userInfo.Latency != nil { // may be unnecessary
+		    for _, p := range userInfo.Latency {
+			peername := p.Peer
+			weight := p.Latency
+			graph.AddUniEdge(peername, username, weight)
+		    }
+		}
+		
+	    case "newUser": 
+		username := userInfo.User
+		graph.AddNode(username)
 		for _, p := range userInfo.Latency {
 		    peername := p.Peer
 		    weight := p.Latency
 		    graph.AddUniEdge(peername, username, weight)
 		}
-	    }
-	    
-	case "newUser": 
-	    username := userInfo.User
-	    graph.AddNode(username)
-	    for _, p := range userInfo.Latency {
-		peername := p.Peer
-		weight := p.Latency
-		graph.AddUniEdge(peername, username, weight)
-	    }
-	    
-	case "disconnectedUser": 
-	    username := userInfo.User
-	    graph.RemoveNode(username)
-	    if graph.GetTotalNodes() == 0 {
+		
+		// Get DCMST and send instructions, assuming the host already exists
+		newTree := graph.GetDCMST(1) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+		newTree.Print()
+		
+		addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
+		
+		host := newTree.GetHead().Value
+		for _, edge := range removedEdges {
+		    ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		}
+		
+		for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
+		    ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		}
+		
+		tree = newTree
+		
+	    case "disconnectedUser": 
+		username := userInfo.User
+		graph.RemoveNode(username)
+		// The following case is not captured by the loop below -> This is artifect
+		
+		/* Avoid sending unnecessary instruction because the user already disconnect
+		 * and there is no need to send this instruction again 
+		 * if graph.GetTotalNodes() <= 1 {
+		 *	   i ns* <- Instruction{Type:"deletePeerConnection", Parent: userInfo.Host, Child: userInfo.User, Host: userInfo.Host}
+		 * }
+		 */
+		
+		// Get DCMST and send instructions, assuming the host already exists
+		newTree := graph.GetDCMST(1) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+		newTree.Print()
+		
+		addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
+		
+		host := newTree.GetHead().Value
+		for _, edge := range removedEdges {
+		    // Remove edges associated with the disconnected user to avoid unnecessary instructions
+		    // since the user is already disconnected, there is no need for further instructions
+		    if !edge.HasNode(username) {
+			ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		    }
+		}
+		
+		for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
+		    // Added edges will not have any information about disconnected user so it's safe
+		    ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		}
+		
+		tree = newTree
+		
+		
+	    /* close room signal, it is not used at the moment
+	    case "closeRoom":
 		return
-	    }
-	
-	case "closeRoom":
-	    return
+	    */
 	}
 	
-	//graph.Print()
-	if graph.GetTotalNodes() > 1 {
-	    newTree := graph.GetDCMST(2) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
-	    newTree.Print()
-	    
-	    addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
-	    
-	    host := newTree.GetHead().Value
-	    for _, edge := range removedEdges {
-		ins <- Instruction{Type:"deletePeerConnection", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
-	    }
-	    
-	    for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
-		ins <- Instruction{Type:"newPeerConnection", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
-	    }
-	
-	    tree = newTree
+	// Close the room when no one is left in the room
+	if graph.GetTotalNodes() == 0 {
+	    delete(rooms, roomId)
+	    fmt.Println("Closing room", roomId)
+	    return
 	}
     }
 }
@@ -258,7 +296,7 @@ func handleInstructions(ins <-chan Instruction) {
 	    continue
 	}
 	fmt.Fprintf(conn, "%s\n", string(str))	// Refering to global variable
-						// assuming one signal server
+	// assuming one signal server
 	fmt.Println("Instruction Sent")
     }
 }

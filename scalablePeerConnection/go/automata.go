@@ -44,11 +44,13 @@ func NewAutomata(actions, limit int) *Automata {
 
 // @PASSED
 func (a *Automata) Enum() int {
-    if a.counter < a.limit {
+    if a.active {
 	a.counter++
+	if a.counter == a.limit {
+	    a.active = false
+	}
 	return a.sampling.Sample()
     } else {
-	a.active = false
 	return 0
     }
     // TODO: Error handling isn't done properly
