@@ -77,18 +77,6 @@ function WebRTC(server){
 		self.allConnection.onCandidate(iceCandidate);
 	});
 
-//	when a user in the room disconnnected
-	self.socket.on("disconnectedUser", function(disConnectedUserName) {
-		console.log("user " + disConnectedUserName + " is disconnected");
-		self.onUserDisconnect(disConnectedUserName);
-		self.socket.emit("message", {
-			type: "message",
-			action: "leave",
-			user: self.user,
-			content: ""
-		});
-	});
-
 //	initialize 1 way peer connection or start host's camera
 	self.socket.on("initConnection", function(peer){
 		self.allConnection.initConnection(peer);
@@ -110,12 +98,16 @@ function WebRTC(server){
 		self.onMessage(messageData);
 	});
 
-	self.socket.on("newPeerConnection", function(userData){
+	self.socket.on("startForwarding", function(userData){
 		if (userData.parent === self.user){
 			self.addVideo(userData.child);
 		}else if (userData.child === self.user){
 			self.onAddVideo(userData.parent);
 		}
+	});
+	
+	self.socket.on("stopForwarding", function(peer){
+		self.allConnection.stopForwarding(peer);
 	});
 
 	self.socket.on("localStream", function(localStream){

@@ -102,20 +102,6 @@ AllConnection.prototype.onOffer = function(sdpOffer, cb){
 	});
 }
 
-//when receive an spd answer
-AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
-	this.connection[sdpAnswer.remote].receiveAnswer(sdpAnswer.answer);
-}
-
-//when receive an ice candidate
-AllConnection.prototype.onCandidate = function(iceCandidate){
-	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
-}
-
-AllConnection.prototype.deleteConnection = function(peer){
-	this.connection[peer] = null;
-}
-
 //set the ICE server 
 AllConnection.prototype.setIceServer = function(iceServers){
 	this.iceServers = iceServers;
@@ -192,6 +178,26 @@ AllConnection.prototype.setLocalStream = function(stream){
 	console.log("set local stream in allconnection");
 	console.log(stream);
 	this.stream = stream;
+}
+
+AllConnection.prototype.stopForwarding = function(peer){
+	console.log("remove stream");
+	self.connection[peer].p2pConnection.removeStream(self.stream);
+	self.connection[peer].p2pConnection.close();
+}
+
+//when receive an spd answer
+AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
+	this.connection[sdpAnswer.remote].receiveAnswer(sdpAnswer.answer);
+}
+
+//when receive an ice candidate
+AllConnection.prototype.onCandidate = function(iceCandidate){
+	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
+}
+
+AllConnection.prototype.deleteConnection = function(peer){
+	this.connection[peer] = null;
 }
 
 module.exports = AllConnection;

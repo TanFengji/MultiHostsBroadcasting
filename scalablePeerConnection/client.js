@@ -48,10 +48,6 @@ function jRoom(e){
 	}
 }
 
-function addVideo(){
-	webrtc.addVideo();
-}
-
 function sendMessage(e){
 	if (e.keyCode == 13) {
 		var message = document.getElementById("message").value;
@@ -65,7 +61,3 @@ function setIceServer(iceServers){
 	webrtc.setIceServer(iceServers);
 }
 
-
-webrtc.onMessage = function(messageData) {
-	document.getElementById("message").value = messageData.content;
-}

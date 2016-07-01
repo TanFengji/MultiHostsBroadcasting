@@ -197,6 +197,12 @@ AllConnection.prototype.setLocalStream = function(stream){
 	this.stream = stream;
 }
 
+AllConnection.prototype.stopForwarding = function(peer){
+	console.log("remove stream");
+	self.connection[peer].p2pConnection.removeStream(self.stream);
+	self.connection[peer].p2pConnection.close();
+}
+
 module.exports = AllConnection;
 },{"./indicator.js":4,"./peerconnection.js":52}],3:[function(require,module,exports){
 
@@ -7873,12 +7879,16 @@ function WebRTC(server){
 		self.onMessage(messageData);
 	});
 
-	self.socket.on("newPeerConnection", function(userData){
+	self.socket.on("startForwarding", function(userData){
 		if (userData.parent === self.user){
 			self.addVideo(userData.child);
 		}else if (userData.child === self.user){
 			self.onAddVideo(userData.parent);
 		}
+	});
+	
+	self.socket.on("stopForwarding", function(peer){
+		self.allConnection.stopForwarding(peer);
 	});
 
 	self.socket.on("localStream", function(localStream){

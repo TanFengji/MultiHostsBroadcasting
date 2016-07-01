@@ -201,34 +201,31 @@ status: "fail"
 				room: socket.room,
 				host:	room[socket.room].host
 			});
-			socket.broadcast.to(socket.room).emit("message", {
-				type: "message",
-				action: "disconnect",
-				user: socket.userName,
-				content: ""
+			socket.broadcast.to(socket.room).emit("deleteConnection", {
+				type: "deleteConnection",
+				peer: socket.userName
 			});
 			user[socket.userName] = null;
 		}
 	})
 
-//	a new peer connection is asked to be built
-	socket.on("newPeerConnection", function(userData){
+//	start forwarding video
+	socket.on("startForwarding", function(userData){
 		try {
 			console.log(userData);
-			user[userData.parent].emit("newPeerConnection", userData);
-			user[userData.child].emit("newPeerConnection", userData);
+			user[userData.parent].emit("startForwarding", userData);
+			user[userData.child].emit("startForwarding", userData);
 			//	console.log("User " + command[1] + " initialise connection to user " + command[2]);
 		} catch(e){
 			console.log(e);
 		}
-
 	})
 
-//	a peer connection is asked to be deleted
-	socket.on("deletePeerConnection", function(userData){
+	//	stop forwarding video
+	socket.on("stopForwarding", function(userData){
 		try {
-
-			user[userData.parent].emit("deleteConnection", userData.child);
+			user[userData.parent].emit("startForwarding", userData.child);
+			user[userData.child].emit("startForwarding", userData.parent);
 			//	console.log("User " + command[1] + " initialise connection to user " + command[2]);
 		} catch(e){
 			console.log(e);
