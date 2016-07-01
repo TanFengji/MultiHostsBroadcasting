@@ -200,7 +200,7 @@ func manageRoom(room chan UserInfo) {
 		graph.SetHead(username)
 		fmt.Println("New Room", roomId, "is created")
 		fmt.Println("Currently ", graph.GetTotalNodes(), "users are in the room")
-		ins <- Instruction{Type: "host", Host: username} 
+		ins <- Instruction{Type: "startBroadcasting", Host: username} 
 		
 		if userInfo.Latency != nil { // may be unnecessary
 		    for _, p := range userInfo.Latency {

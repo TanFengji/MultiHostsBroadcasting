@@ -26,12 +26,12 @@ go.on('data', function(data) {
     console.log('Go: ' + jsons[i]);
     var res = JSON.parse(jsons[i]);
     switch (res.type) {
-      case "newPeerConnection": 
-	signalSocket.emit("newPeerConnection", res); break;
-      case "deletePeerConnection":
-	signalSocket.emit("deletePeerConnection", res); break;
-      case "host":
-	signalSocket.emit("host", res); break;
+      case "startForwarding": 
+	signalSocket.emit("startForwarding", res); break;
+      case "stopForwarding":
+	signalSocket.emit("stopForwarding", res); break;
+      case "startBroadcasting":
+	signalSocket.emit("startBroadcasting", res); break;
     }
   }
   
