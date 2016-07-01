@@ -7704,6 +7704,8 @@ PeerConnection.prototype.setupPeerConnection = function(peer, cb) {
 //initialise p2pconnection at the start of a peer connection 
 PeerConnection.prototype.startConnection = function(cb){
 	this.p2pConnection = new RTCPeerConnection(this.configuration);
+	console.log("window");
+	window.p2pConnection = this.p2pConnection;//debug
 	cb();
 }
 
