@@ -353,6 +353,7 @@ DataChannel.prototype.setupConnection = function(){
 }
 
 DataChannel.prototype.startRecording = function(stream) {
+	// Could improve performace in the future when disconnect by increase buffer size
 	window.sourceBuffer.abort();
 	var self = this;
 	var mediaRecorder = new MediaRecorder(stream);
