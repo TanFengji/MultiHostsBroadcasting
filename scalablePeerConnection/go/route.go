@@ -99,7 +99,11 @@ func main() {
 func handleRequests(queue chan<- UserInfo) {
     fmt.Println("handleRequests is working")
     conn := connection.GetConnection()
-    defer conn.Close() 
+    
+    defer func() {
+	conn.Close()
+	connection.conn = nil
+    }()
     
     input := bufio.NewScanner(conn)
     var userInfo UserInfo
@@ -310,6 +314,9 @@ func manageRoom(room chan UserInfo) {
 
 func handleInstructions(ins <-chan Instruction) {
     conn := connection.GetConnection()
+    if conn == nil {
+	return
+    }
     fmt.Println("handleInstructions is working")
     for {
 	instruction := <- ins
