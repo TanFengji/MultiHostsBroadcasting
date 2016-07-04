@@ -5,6 +5,7 @@ import (
     "encoding/json"
     "net"
     "bufio"
+    "sync"
 )
 
 type PeerInfo struct {
@@ -28,7 +29,6 @@ type Instruction struct {
 }
 
 
-
 const (
     CONN_HOST = "localhost"
     CONN_PORT = "8888"
@@ -41,12 +41,30 @@ var closeRoom chan (chan UserInfo)
 var ins chan Instruction
 var conn net.Conn
 
+type Connection struct {
+    sync.Mutex
+    conn net.Conn
+}
+
+func (c *Connection) GetConnection() net.Conn {
+    defer c.Unlock()
+    c.Lock()
+    return c.conn
+}
+
+func (c *Connection) SetConnection(newc net.Conn) {
+    defer c.Unlock()
+    c.Lock()
+    c.conn = newc
+}
+
 func main() {
     // Listen for incoming connections.
     listener, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
     queue := make(chan UserInfo, 10) // Buffered channel with capacity of 10
     ins = make(chan Instruction, 10)
     rooms = make(map[string]chan UserInfo, 0)
+    //connection = new(Connection)
     //rooms = make(map[string]Room)
     
     if err != nil {
@@ -59,6 +77,7 @@ func main() {
     for {
 	// Listen for an incoming connection.
 	conn, err := listener.Accept()
+	//connection.SetConnection(conn)
 	
 	if err != nil {
 	    fmt.Println("Error accepting: ", err.Error())
@@ -78,7 +97,7 @@ func main() {
 func handleRequests(con net.Conn, queue chan<- UserInfo) {
     fmt.Println("handleRequests is working")
     conn = con
-    defer con.Close() // may cause problem
+    //defer con.Close() // may cause problem
     
     input := bufio.NewScanner(conn)
     var userInfo UserInfo
