@@ -110,60 +110,6 @@ AllConnection.prototype.setIceServer = function(iceServers){
 	this.iceServers = iceServers;
 }
 
-AllConnection.prototype.startRecording = function(stream) {
-	var self = this;
-	var mediaRecorder = new MediaRecorder(stream);
-//	will freeze if lose socket	
-	mediaRecorder.start(500);
-
-	mediaRecorder.ondataavailable = function (e) {
-		var reader = new FileReader();
-		reader.addEventListener("loadend", function () {
-
-			var arr = new Uint8Array(reader.result);
-			self.videoData.push(arr);
-
-			if (!self.chunkUpdating){
-				self.chunkUpdating = true;
-				var data = self.videoData.shift();
-				var chunkLength = data.byteLength/self.chunkSize ; 
-
-				for (var i = 0; i<= chunkLength ; i++){
-					if (data.byteLength < self.chunkSize*(i + 1)){
-						var endByte = data.byteLength;
-					} else{
-						var endByte = self.chunkSize*(i + 1);
-					}
-					self.chunks.push(data.slice(self.chunkSize* i, endByte));
-
-					//	var chunk = self.chunks.shift();
-					self.sendStreamBuffer();
-					if (endByte === data.byteLength){
-						self.chunkUpdating = false;
-					} 
-				}
-			}
-		});
-		console.log(e.data);
-		reader.readAsArrayBuffer(e.data);
-	};
-
-	mediaRecorder.onstart = function(){
-		console.log('Started, state = ' + mediaRecorder.state);
-	};
-}
-
-AllConnection.prototype.sendStreamBuffer = function(){
-	console.log("here");
-	var self = this;
-	for (var i in self.peerList){
-		var chunk = self.chunks.shift();
-		console.log("here");
-		console.log("child is " + self.peerList[i]);
-		self.connection[self.peerList[i]].dataChannel.send(chunk);
-	}
-}
-
 AllConnection.prototype.addVideo = function(peer){
 	var self = this;
 	this.connection[peer].addVideo(self.stream);
@@ -202,7 +148,9 @@ AllConnection.prototype.onCandidate = function(iceCandidate){
 
 AllConnection.prototype.deleteConnection = function(peer){
 	var self = this;
-	this.connection[peer].p2pConnection.removeStream(self.stream);
+	//this.connection[peer].p2pConnection.removeStream(self.stream);
+	this.connection[peer].p2pConnection.onicecandidate = null; 
+	this.connection[peer].p2pConnection.onaddstream = null;
 	this.connection[peer].p2pConnection.close();
 	this.connection[peer].p2pConnection = null;
 	this.connection[peer] = null;

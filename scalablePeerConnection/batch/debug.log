@@ -343,3 +343,10 @@
 [0701/145327:ERROR:file_io.cc(30)] read: expected 36, observed 0
 [0701/151052:ERROR:file_io.cc(30)] read: expected 36, observed 0
 [0701/153633:ERROR:file_io.cc(30)] read: expected 36, observed 0
+[0704/130638:ERROR:file_io.cc(30)] read: expected 36, observed 0
+[0704/131558:ERROR:file_io.cc(30)] read: expected 36, observed 0
+[0704/142102:ERROR:file_io.cc(30)] read: expected 36, observed 0
+[0704/142102:ERROR:file_io.cc(30)] read: expected 36, observed 0
+[0704/142107:ERROR:file_io.cc(30)] read: expected 36, observed 0
+[0704/143428:ERROR:file_io.cc(30)] read: expected 36, observed 0
+[0704/144548:ERROR:file_io.cc(30)] read: expected 36, observed 0

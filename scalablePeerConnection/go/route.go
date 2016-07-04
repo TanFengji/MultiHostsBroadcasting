@@ -220,7 +220,7 @@ func manageRoom(room chan UserInfo) {
 		}
 		
 		// Get DCMST and send instructions, assuming the host already exists
-		newTree := graph.GetDCMST(2) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+		newTree := graph.GetDCMST(1) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
 		newTree.Print()
 		
 		addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
@@ -249,7 +249,7 @@ func manageRoom(room chan UserInfo) {
 		 */
 		
 		// Get DCMST and send instructions, assuming the host already exists
-		newTree := graph.GetDCMST(2) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+		newTree := graph.GetDCMST(1) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
 		newTree.Print()
 		
 		addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
