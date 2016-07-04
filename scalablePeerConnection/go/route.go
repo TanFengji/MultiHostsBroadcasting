@@ -40,6 +40,7 @@ var openRoom chan (chan UserInfo)
 var closeRoom chan (chan UserInfo)
 var ins chan Instruction
 var conn net.Conn
+var connection *Connection
 
 type Connection struct {
     sync.Mutex
@@ -60,11 +61,11 @@ func (c *Connection) SetConnection(newc net.Conn) {
 
 func main() {
     // Listen for incoming connections.
+    connection = new(Connection)
     listener, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
     queue := make(chan UserInfo, 10) // Buffered channel with capacity of 10
     ins = make(chan Instruction, 10)
     rooms = make(map[string]chan UserInfo, 0)
-    //connection = new(Connection)
     //rooms = make(map[string]Room)
     
     if err != nil {
@@ -77,7 +78,7 @@ func main() {
     for {
 	// Listen for an incoming connection.
 	conn, err := listener.Accept()
-	//connection.SetConnection(conn)
+	connection.SetConnection(conn)
 	
 	if err != nil {
 	    fmt.Println("Error accepting: ", err.Error())
@@ -85,19 +86,20 @@ func main() {
 	}
 	
 	// Setup connections map
+	fmt.Println("Connection established")
 	
 	// Handle connections in a new goroutine.
-	go handleRequests(conn, queue)
+	go handleRequests(queue)
 	go handleTasks(queue) // Potentially need to increase the number of workers
 	go handleInstructions(ins)
     }
 }
 
 // Handles incoming requests and parse response from json to UserInfo struct
-func handleRequests(con net.Conn, queue chan<- UserInfo) {
+func handleRequests(queue chan<- UserInfo) {
     fmt.Println("handleRequests is working")
-    conn = con
-    //defer con.Close() // may cause problem
+    conn := connection.GetConnection()
+    defer conn.Close() 
     
     input := bufio.NewScanner(conn)
     var userInfo UserInfo
@@ -111,6 +113,7 @@ func handleRequests(con net.Conn, queue chan<- UserInfo) {
 	}
 	queue <- userInfo // send userInfo to task queue
     }
+    fmt.Println("Connection closed")
 }
 
 
@@ -306,6 +309,7 @@ func manageRoom(room chan UserInfo) {
 }
 
 func handleInstructions(ins <-chan Instruction) {
+    conn := connection.GetConnection()
     fmt.Println("handleInstructions is working")
     for {
 	instruction := <- ins
