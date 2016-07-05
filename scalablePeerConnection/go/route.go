@@ -3,9 +3,6 @@ package main
 import (
     "fmt"
     "encoding/json"
-    "net"
-    "bufio"
-    "sync"
     "github.com/googollee/go-socket.io"
     "net/http"
     "log"
@@ -31,43 +28,15 @@ type Instruction struct {
     Host string `json:"host"`
 }
 
-
-const (
-    CONN_HOST = "localhost"
-    CONN_PORT = "8888"
-    CONN_TYPE = "tcp"
-)
-
 var rooms map[string]chan UserInfo
 var openRoom chan (chan UserInfo)
 var closeRoom chan (chan UserInfo)
 var ins chan Instruction
-var conn net.Conn
-var connection *Connection
-
-type Connection struct {
-    sync.Mutex
-    conn net.Conn
-}
-
-func (c *Connection) GetConnection() net.Conn {
-    defer c.Unlock()
-    c.Lock()
-    return c.conn
-}
-
-func (c *Connection) SetConnection(newc net.Conn) {
-    defer c.Unlock()
-    c.Lock()
-    c.conn = newc
-}
 
 func main() {
     // Listen for incoming connections.
-    //queue := make(chan UserInfo, 10) // Buffered channel with capacity of 10
     ins = make(chan Instruction, 10)
     rooms = make(map[string]chan UserInfo, 0)
-    //rooms = make(map[string]Room)
     
     server, err := socketio.NewServer(nil)
     
@@ -113,7 +82,7 @@ func main() {
 	    fmt.Println("Connection closed")
 	})
 	
-	// May consider moving it into a goroutine
+	// Start a goroutine to handle instructions
 	go func(so socketio.Socket) {
 	    for instruction := range ins {
 		str, err := json.Marshal(instruction)
@@ -126,7 +95,7 @@ func main() {
 		fmt.Println("Instruction Sent")
 		so.Emit("data", string(str)) 
 	    }
-	} (so)
+	}(so)
     })
     
     server.On("error", func(so socketio.Socket, err error) {
@@ -140,52 +109,6 @@ func main() {
     
     // Setup connections map
     fmt.Println("Connection established")
-    
-    // Handle connections in a new goroutine.
-    //go handleRequests(queue)
-    //go handleTasks(queue) // Potentially need to increase the number of workers
-    //go handleInstructions(ins)
-}
-
-// Handles incoming requests and parse response from json to UserInfo struct
-func handleRequests(queue chan<- UserInfo) {
-    fmt.Println("handleRequests is working")
-    conn := connection.GetConnection()
-    
-    defer func() {
-	conn.Close()
-	connection.conn = nil
-    }()
-    
-    input := bufio.NewScanner(conn)
-    var userInfo UserInfo
-    
-    for input.Scan() {
-	text := input.Text()
-	byte_text := []byte(text)
-	err := json.Unmarshal(byte_text, &userInfo)
-	if err != nil {
-	    continue
-	}
-	queue <- userInfo // send userInfo to task queue
-    }
-    fmt.Println("Connection closed")
-}
-
-
-func handleTasks(queue <-chan UserInfo) {
-    fmt.Println("handleTasks is working")
-    
-    for {
-	userInfo := <- queue
-	
-	switch userInfo.Type {
-	    case "newUser": newUserHandler(userInfo) 
-	    case "host": newHostHandler(userInfo)
-	    case "disconnectedUser": disconnectHandler(userInfo)
-	}
-	fmt.Printf("New task received -> Type: %s  User: %s  Room: %s\n", userInfo.Type, userInfo.User, userInfo.Room)
-    }
 }
 
 func newUserHandler(userInfo UserInfo) {
@@ -196,16 +119,6 @@ func newUserHandler(userInfo UserInfo) {
     } else {
 	fmt.Println("ERR: newUserHandler - room doesn't exist")
     }
-    /* Send out instructions */
-    /* TODO: may need to separate out this part */
-    
-    // host := room.getHost()
-    //host := userInfo.Host
-    //if host.Role == "host" { 
-    //ins <- Instruction{Type:"newPeerConnection", Parent: host, Child: userInfo.User}
-    //} else {
-    //fmt.Println("ERR: Host doesn't exist")
-    //}
 }
 
 func newHostHandler(userInfo UserInfo) {
@@ -221,42 +134,15 @@ func newHostHandler(userInfo UserInfo) {
     } else {
 	fmt.Println("ERR: newHostHandler - room already exists")
     }
-    /*
-     *	user := User{Name: userInfo.User, Role: "host"}
-     *	users := make([]User, 0)
-     *	users = append(users, user)
-     *	room := Room{ID: roomId, Users: users}
-     *	rooms[roomId] = room;
-     *	fmt.Println(room.getUsers())
-     *	ins <- Instruction{Type:"host", Host: user.Name}
-     */
 }
 
 func disconnectHandler(userInfo UserInfo) {
     roomId := userInfo.Room
     if room, exist := rooms[roomId]; exist {
 	room <- userInfo
-	//room.removeUser(user)
-	
-	/* Send out instruction */
-	//host := room.getHost()
-	//host := userInfo.Host;
-	
-	//if host.Role == "host" {
-	//ins <- Instruction{Type:"deletePeerConnection", Parent: host, Child: userInfo.User}
-	//} else {
-	//fmt.Println("ERR: Host doesn't exist")
-	//}
-	
-	/*
-	 *	if len(room.getUsers())==0 {
-	 *	    delete(rooms, roomId)
-    }
-    */
-	//fmt.Println(room.getUsers())
-    } else {
+   } else {
 	fmt.Println("ERR: disconnectHandler - disconnecting from a room non-existing")
-    }
+   }
 }
 
 func manageRoom(room chan UserInfo) {
@@ -361,24 +247,5 @@ func manageRoom(room chan UserInfo) {
 	    fmt.Println("Closing room", roomId)
 	    return
 	}
-    }
-}
-
-func handleInstructions(ins <-chan Instruction) {
-    conn := connection.GetConnection()
-    if conn == nil {
-	return
-    }
-    fmt.Println("handleInstructions is working")
-    for {
-	instruction := <- ins
-	str, err := json.Marshal(instruction)
-	if err != nil {
-	    fmt.Println("Error listening:", err.Error())
-	    continue
-	}
-	fmt.Fprintf(conn, "%s\n", string(str))	// Refering to global variable
-	// assuming one signal server
-	fmt.Println("Instruction Sent")
     }
 }
