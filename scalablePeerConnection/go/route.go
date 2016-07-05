@@ -151,7 +151,7 @@ func manageRoom(room chan UserInfo) {
     var graph = NewGraph() // TODO: implement Graph
     var tree = NewGraph()
     var roomId string
-    const DEGREE = 2
+    const DEGREE = 1
     for {
 	userInfo := <- room
 	//fmt.Printf("[DEBUG] %v\n", userInfo.Host)
@@ -185,8 +185,25 @@ func manageRoom(room chan UserInfo) {
 			ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:username}
 		    }
 		    
-		    for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
-			ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:username}
+		    if len(addedEdges) >0 { // assuming addedEdges are sorted in good orders 
+			/* Now we need to send the complete instruction set from the first changed nodes such that all the sub-connections
+			 * are able to reconnect with no problem. The edges are topologically sorted thanks to Compare function.
+			 * we need to find the first affected node and start to send instruction from that point
+			 * In order to convert a tree to topologically sorted instruction sets
+			 * we hack the Compare function to compare it with an empty tree
+			 */
+			edge := addedEdges[0]
+			empty := NewGraph()
+			subgraph := newTree.GetSubTree(edge.Parent.Value)
+			
+			fmt.Println("<<<<Instruction Tree>>>>")
+			subgraph.Print()
+			adds, _ := subgraph.Compare(empty)
+			
+			for _, e := range adds {
+			    //fmt.Printf("Sending instruction %v -> %v\n", e.Parent.Value, e.Child.Value)
+			    ins <- Instruction{Type:"startForwarding", Parent: e.Parent.Value, Child: e.Child.Value, Host:username}
+			}
 		    }
 		    
 		    tree = newTree
@@ -217,8 +234,25 @@ func manageRoom(room chan UserInfo) {
 			ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
 		    }
 		    
-		    for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
-			ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		    if len(addedEdges) >0 { // assuming addedEdges are sorted in good orders 
+			/* Now we need to send the complete instruction set from the first changed nodes such that all the sub-connections
+			 * are able to reconnect with no problem. The edges are topologically sorted thanks to Compare function.
+			 * we need to find the first affected node and start to send instruction from that point
+			 * In order to convert a tree to topologically sorted instruction sets
+			 * we hack the Compare function to compare it with an empty tree
+			 */
+			edge := addedEdges[0]
+			empty := NewGraph()
+			subgraph := newTree.GetSubTree(edge.Parent.Value)
+			
+			fmt.Println("<<<<Instruction Tree>>>>")
+			subgraph.Print()
+			adds, _ := subgraph.Compare(empty)
+			
+			for _, e := range adds {
+			    //fmt.Printf("Sending instruction %v -> %v\n", e.Parent.Value, e.Child.Value)
+			    ins <- Instruction{Type:"startForwarding", Parent: e.Parent.Value, Child: e.Child.Value, Host:host}
+			}
 		    }
 		    
 		    tree = newTree
@@ -226,6 +260,7 @@ func manageRoom(room chan UserInfo) {
 		
 	    case "disconnectedUser": 
 		username := userInfo.User
+		graph.RemoveNode(username)
 		
 		// Check if host exists
 		if graph.HasHead() {
@@ -235,11 +270,9 @@ func manageRoom(room chan UserInfo) {
 			// When the host disconnect, do not send any instructions
 			// It may be necessary in the future to broadcast that
 			// a host has disconnected
-			graph.RemoveNode(username)
 			graph.RemoveHead()
 			
 		    } else {
-			graph.RemoveNode(username)
 			// When a user disconnect, send instructions
 			
 			// The following case is not captured by the loop below -> This is artifect
@@ -266,21 +299,35 @@ func manageRoom(room chan UserInfo) {
 			    }
 			}
 			
-			for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
-			    // Added edges will not have any information about disconnected user so it's safe
-			    ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+			if len(addedEdges) >0 { // assuming addedEdges are sorted in good orders 
+			    /* Now we need to send the complete instruction set from the first changed nodes such that all the sub-connections
+			     * are able to reconnect with no problem. The edges are topologically sorted thanks to Compare function.
+			     * we need to find the first affected node and start to send instruction from that point
+			     * In order to convert a tree to topologically sorted instruction sets
+			     * we hack the Compare function to compare it with an empty tree
+			     */
+			    edge := addedEdges[0]
+			    empty := NewGraph()
+			    subgraph := newTree.GetSubTree(edge.Parent.Value)
+			    
+			    fmt.Println("<<<<Instruction Tree>>>>")
+			    subgraph.Print()
+			    adds, _ := subgraph.Compare(empty)
+			    
+			    for _, e := range adds {
+				//fmt.Printf("Sending instruction %v -> %v\n", e.Parent.Value, e.Child.Value)
+				ins <- Instruction{Type:"startForwarding", Parent: e.Parent.Value, Child: e.Child.Value, Host:host}
+			    }
 			}
-			
 			tree = newTree
-			
 		    }
 		}
-		
-		/* close room signal, it is not used at the moment
-		 *	 c **ase "closeRoom":
-		 *	 return
-		 */
 	}
+	
+	/* close room signal, it is not used at the moment
+	 *	 c **ase "closeRoom":
+	 *	 return
+	 */
 	
 	// Close the room when no one is left in the room
 	if graph.GetTotalNodes() == 0 {
