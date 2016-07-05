@@ -1,5 +1,6 @@
-var AllConnection = require('./allconnection.js');
-var io = require('socket.io-client');
+var ClientData = require("./clientData.js");
+var AllConnection = require("./allconnection.js");
+var io = require("socket.io-client");
 
 function WebRTC(server){
 	var self = this;
@@ -13,6 +14,7 @@ function WebRTC(server){
 	this.latencyListSize = 0;
 	this.allConnection = new AllConnection();;
 	this.socket = io(server);
+	ClientData.setSocket(this.socket);
 
 	// when a datachannel setup ready
 	self.socket.on("dataChannelStatus", function(dataChannelStatusData){
@@ -120,8 +122,10 @@ WebRTC.prototype.login = function(userName, successCallback, failCallback) {
 	this.socket.emit("login", userName);
 	this.socket.on("login", function(loginResponse){
 		if (loginResponse.status === "success") {
+			ClientData.setUser(loginResponse.userName);
+			ClientData.setIceServerConfig(loginResponse.config);
 			self.user = loginResponse.userName;
-			self.allConnection.init(loginResponse.userName, self.socket, loginResponse.config);
+			self.allConnection.init();
 			successCallback();
 		} else if (loginResponse.status === "fail") {
 			failCallback();

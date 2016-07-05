@@ -1,18 +1,17 @@
+var ClientData = require("./clientData.js");
 var DataChannel = require('./dataChannel.js');
 
-function PeerConnection(local, peer, socket, config, sourceBuffer){
+function PeerConnection(peer){
 	var p2pConnection;
 	var indicator;
 	var dataChannel;
-	this.sourceBuffer = sourceBuffer;
-	this.user = local;
-	this.remote = peer;
-	this.socket = socket;
-	this.configuration = config;
+	this.peer = peer;
+	this.user = ClientData.getUser();
+	this.socket = ClientData.getSocket();
 }
 
 //Visitor setup the p2p connection with a peer
-PeerConnection.prototype.setupPeerConnection = function(peer, cb) {
+PeerConnection.prototype.setupPeerConnection = function(cb) {
 	var self = this;
 
 //	Setup ice handling
@@ -21,7 +20,7 @@ PeerConnection.prototype.setupPeerConnection = function(peer, cb) {
 			self.socket.emit("candidate", {
 				type: "candidate",
 				local: self.user,
-				remote: peer,
+				remote: self.peer,
 				candidate: event.candidate
 			});
 		}
@@ -31,15 +30,13 @@ PeerConnection.prototype.setupPeerConnection = function(peer, cb) {
 
 //initialise p2pconnection at the start of a peer connection 
 PeerConnection.prototype.startConnection = function(cb){
-	this.p2pConnection = new RTCPeerConnection(this.configuration);
-	console.log("window");
-	window.p2pConnection = this.p2pConnection;//debug
+	this.p2pConnection = new RTCPeerConnection(ClientData.getIceServerConfig());
 	cb();
 }
 
 PeerConnection.prototype.openDataChannel = function(cb){
 	var self = this;
-	this.dataChannel = new DataChannel(self.p2pConnection, self.socket, self.remote, self.sourceBuffer);
+	this.dataChannel = new DataChannel(self.p2pConnection, self.peer);
 	this.dataChannel.open();
 	cb();
 }
@@ -84,7 +81,6 @@ PeerConnection.prototype.receiveAnswer = function(sdpAnswer){
 PeerConnection.prototype.addVideo = function(stream){
 	var self = this;
 	this.p2pConnection.addStream(stream);
-	console.log(stream);
 	this.makeOffer( function(sdpOffer){
 		sdpOffer.sdp = sdpOffer.sdp.replace(/a=sendrecv/g,"a=sendonly");
 		self.p2pConnection.setLocalDescription(sdpOffer,function(){}, function(){});
