@@ -20,7 +20,7 @@ func main () {
     graph.AddUniEdge("c", "e", 1)
     
     graph.SetHead("a")
-    h := graph.GetHead()
+    h, _ := graph.GetHead()
     fmt.Println(h.Value) 			// a
     fmt.Println(graph.GetTotalNodes())		// 5
     
@@ -56,7 +56,23 @@ func main () {
 	fmt.Println(c.Value)			// [e]
     }
     
+    fmt.Println(graph.HasHead())		// true
+    graph.RemoveHead()
+    fmt.Println(graph.HasHead())		// false
+    _, err := graph.GetHead()
+    if err != nil {
+	fmt.Println(err)			// Head not found
+    }
+    graph.SetHead("a")
+    fmt.Println(graph.HasHead())		// true
+    n, err := graph.GetHead()
+    if err != nil {
+	fmt.Println(err)			
+    }
+    fmt.Println(n.Value)			// a
+    
     // Test DCMST
+    /*
     fmt.Println("=========================")
     fmt.Println("[DEBUG] START")
     graph.Print()
@@ -85,5 +101,6 @@ func main () {
 	fmt.Printf("%v -> %v ", e.Parent.Value, e.Child.Value)
     }
     fmt.Printf("\n")
+    */
     
 } 

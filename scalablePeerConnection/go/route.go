@@ -22,7 +22,7 @@ type UserInfo struct {
 }
 
 type Instruction struct {
-    Type string `json:"type"` //enum: "newPeerConnection" "deletePeerConnection"
+    Type string `json:"type"` //enum: "startBroadcasting" "startForwarding" "stopForwarding"
     Parent string `json:"parent"`
     Child string `json:"child"` 
     Host string `json:"host"`
@@ -151,7 +151,7 @@ func manageRoom(room chan UserInfo) {
     var graph = NewGraph() // TODO: implement Graph
     var tree = NewGraph()
     var roomId string
-    
+    const DEGREE = 2
     for {
 	userInfo := <- room
 	//fmt.Printf("[DEBUG] %v\n", userInfo.Host)
@@ -174,6 +174,24 @@ func manageRoom(room chan UserInfo) {
 		    }
 		}
 		
+		// If there are users in the room, start to send instructions
+		if graph.GetTotalNodes() > 1 {
+		    newTree := graph.GetDCMST(DEGREE) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+		    newTree.Print()
+		    
+		    addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
+		    
+		    for _, edge := range removedEdges {
+			ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:username}
+		    }
+		    
+		    for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
+			ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:username}
+		    }
+		    
+		    tree = newTree
+		}
+		
 	    case "newUser": 
 		username := userInfo.User
 		graph.AddNode(username)
@@ -183,57 +201,80 @@ func manageRoom(room chan UserInfo) {
 		    graph.AddUniEdge(peername, username, weight)
 		}
 		
-		// Get DCMST and send instructions, assuming the host already exists
-		newTree := graph.GetDCMST(2) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
-		newTree.Print()
-		
-		addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
-		
-		host := newTree.GetHead().Value
-		for _, edge := range removedEdges {
-		    ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		// Check if the host exists
+		if graph.HasHead() {
+		    // If the host doesn't exist, do not send any instructions
+		    // otherwise send instructions
+		    
+		    // Get DCMST and send instructions, assuming the host already exists
+		    newTree := graph.GetDCMST(DEGREE) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+		    newTree.Print()
+		    
+		    addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
+		    
+		    host := newTree.GetHead().Value
+		    for _, edge := range removedEdges {
+			ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		    }
+		    
+		    for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
+			ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		    }
+		    
+		    tree = newTree
 		}
-		
-		for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
-		    ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
-		}
-		
-		tree = newTree
 		
 	    case "disconnectedUser": 
 		username := userInfo.User
-		graph.RemoveNode(username)
-		// The following case is not captured by the loop below -> This is artifect
 		
-		/* Avoid sending unnecessary instruction because the user already disconnect
-		 * and there is no need to send this instruction again 
-		 * if graph.GetTotalNodes() <= 1 {
-		 *	   i ns* <- Instruction{Type:"deletePeerConnection", Parent: userInfo.Host, Child: userInfo.User, Host: userInfo.Host}
-		 * }
-		 */
-		
-		// Get DCMST and send instructions, assuming the host already exists
-		newTree := graph.GetDCMST(1) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
-		newTree.Print()
-		
-		addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
-		
-		host := newTree.GetHead().Value
-		for _, edge := range removedEdges {
-		    // Remove edges associated with the disconnected user to avoid unnecessary instructions
-		    // since the user is already disconnected, there is no need for further instructions
-		    if !edge.HasNode(username) {
-			ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+		// Check if host exists
+		if graph.HasHead() {
+		    
+		    // Check if the user is a host
+		    if graph.GetHead().Value == username {
+			// When the host disconnect, do not send any instructions
+			// It may be necessary in the future to broadcast that
+			// a host has disconnected
+			graph.RemoveNode(username)
+			graph.RemoveHead()
+			
+		    } else {
+			graph.RemoveNode(username)
+			// When a user disconnect, send instructions
+			
+			// The following case is not captured by the loop below -> This is artifect
+			
+			/* Avoid sending unnecessary instruction because the user already disconnect
+			 * and there is no need to send this instruction again 
+			 * if graph.GetTotalNodes() <= 1 {
+			 *	   ins* <- Instruction{Type:"deletePeerConnection", Parent: userInfo.Host, Child: userInfo.User, Host: userInfo.Host}
+			 * }
+			 */
+			
+			// Get DCMST and send instructions, assuming the host already exists
+			newTree := graph.GetDCMST(DEGREE) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+			newTree.Print()
+			
+			addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
+			
+			host := newTree.GetHead().Value
+			for _, edge := range removedEdges {
+			    // Remove edges associated with the disconnected user to avoid unnecessary instructions
+			    // since the user is already disconnected, there is no need for further instructions
+			    if !edge.HasNode(username) {
+				ins <- Instruction{Type:"stopForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+			    }
+			}
+			
+			for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
+			    // Added edges will not have any information about disconnected user so it's safe
+			    ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
+			}
+			
+			tree = newTree
+			
 		    }
 		}
-		
-		for _, edge := range addedEdges { // assuming addedEdges are sorted in good orders 
-		    // Added edges will not have any information about disconnected user so it's safe
-		    ins <- Instruction{Type:"startForwarding", Parent: edge.Parent.Value, Child: edge.Child.Value, Host:host}
-		}
-		
-		tree = newTree
-		
 		
 		/* close room signal, it is not used at the moment
 		 *	 c **ase "closeRoom":

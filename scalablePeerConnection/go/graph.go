@@ -1,12 +1,16 @@
 package main
 
-import "fmt"
+import (
+    // "errors"
+    "fmt"
+)
 // Graph struct represents a graph that is either undirectional or directional.
 // It may or may not have a head
 type Graph struct {
     edges map[string]map[string]Edge
     nodes map[string]Node
     head Node
+    hasHead bool
 }
 
 // @PASSED 
@@ -15,6 +19,7 @@ func NewGraph() (*Graph) {
     var g Graph
     g.edges = make(map[string]map[string]Edge)
     g.nodes = make(map[string]Node)
+    g.hasHead = false
     return &g
 }
 
@@ -57,6 +62,7 @@ func (g *Graph) SetNode(s string, n Node) {
 // also removes the edges both linking in it and linking out of it`
 func (g *Graph) RemoveNode(s string) {
     if _, exist := g.nodes[s]; exist {
+    
 	
 	//Remove edges linked to it
 	edges := g.GetInEdges(s)
@@ -152,15 +158,46 @@ func (g *Graph) GetEdge(parent, child string) Edge {
 func (g *Graph) SetHead(s string) {
     if n, exist := g.nodes[s]; exist {
 	g.head = n
+	g.hasHead = true
     }
     //TODO: Add error handling
 }
 
 // @PASSED
 // GetHead function gets the head node of a graph
+/*
+func (g *Graph) GetHead() (*Node, error) {
+    if g.HasHead() {
+	return &g.head, nil
+    }
+    return new(Node), errors.New("Head not found") 
+}
+*/
+
+// @PASSED
+// GetHead function gets the head node of a graph
 func (g *Graph) GetHead() Node {
     return g.head
-    //TODO: Add error handling
+}
+
+// @PASSED
+func (g *Graph) HasHead() bool {
+    if g.hasHead {
+	return true
+    }
+    return false
+}
+
+func (g *Graph) IsHead(s string) bool {
+    if g.head.Value == s {
+	return true
+    }
+    return false
+}
+
+// @PASSED
+func (g *Graph) RemoveHead() {
+    g.hasHead = false
 }
 
 // @PASSED
