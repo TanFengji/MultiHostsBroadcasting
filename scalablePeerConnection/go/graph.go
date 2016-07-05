@@ -188,13 +188,6 @@ func (g *Graph) HasHead() bool {
     return false
 }
 
-func (g *Graph) IsHead(s string) bool {
-    if g.head.Value == s {
-	return true
-    }
-    return false
-}
-
 // @PASSED
 func (g *Graph) RemoveHead() {
     g.hasHead = false
@@ -514,4 +507,43 @@ func (g *Graph) Compare(t *Graph) ([]Edge, []Edge) {
 	}
     }
     return addedEdges, removedEdges
+}
+
+// @PASSED
+func (g *Graph) GetSubTree(head string) *Graph {
+    
+    //fmt.Printf("[DEBUG] GetSubTree with head = %s\n", head)
+    
+    children := g.GetChildren(head)
+    graph := NewGraph()
+    graph.AddNode(head)
+    graph.SetHead(head)
+    
+    // For every node add a subtree from the node
+    for _, n := range children {
+	subtree := g.GetSubTree(n.Value)
+	graph.AddSubGraph(subtree)
+    }
+    
+    // Add every out edges from the parent
+    for _, e := range g.GetOutEdges(head) {
+	//fmt.Printf("[DEBUG] Add edge %v -> %v\n", e.Parent.Value, e.Child.Value)
+	graph.AddUniEdge(e.Parent.Value, e.Child.Value, e.Weight)
+    }
+    
+    return graph
+}
+
+// @PASSED
+func (g *Graph) AddSubGraph(ng *Graph) {
+    nodes := ng.GetAllNodes()
+    edges := ng.GetAllEdges()
+    
+    for _, n := range nodes {
+	g.AddNode(n.Value)
+    }
+    
+    for _, e := range edges {
+	g.AddUniEdge(e.Parent.Value, e.Child.Value, e.Weight)
+    }
 }

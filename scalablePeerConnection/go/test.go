@@ -20,7 +20,7 @@ func main () {
     graph.AddUniEdge("c", "e", 1)
     
     graph.SetHead("a")
-    h, _ := graph.GetHead()
+    h := graph.GetHead()
     fmt.Println(h.Value) 			// a
     fmt.Println(graph.GetTotalNodes())		// 5
     
@@ -55,28 +55,12 @@ func main () {
     for _, c := range cs {
 	fmt.Println(c.Value)			// [e]
     }
-    
-    fmt.Println(graph.HasHead())		// true
-    graph.RemoveHead()
-    fmt.Println(graph.HasHead())		// false
-    _, err := graph.GetHead()
-    if err != nil {
-	fmt.Println(err)			// Head not found
-    }
-    graph.SetHead("a")
-    fmt.Println(graph.HasHead())		// true
-    n, err := graph.GetHead()
-    if err != nil {
-	fmt.Println(err)			
-    }
-    fmt.Println(n.Value)			// a
-    
+   
     // Test DCMST
-    /*
     fmt.Println("=========================")
     fmt.Println("[DEBUG] START")
     graph.Print()
-    g1 := graph.GetDCMST(1)
+    g1 := graph.GetDCMST(2)
     g1.Print()
     
     graph.AddNode("d")
@@ -87,7 +71,7 @@ func main () {
     fmt.Println("========================")
     fmt.Println("[DEBUG] START")
     graph.Print()
-    g2 := graph.GetDCMST(1)
+    g2 := graph.GetDCMST(2)
     g2.Print()
     
     as, rs := g2.Compare(g1)
@@ -101,6 +85,34 @@ func main () {
 	fmt.Printf("%v -> %v ", e.Parent.Value, e.Child.Value)
     }
     fmt.Printf("\n")
-    */
     
+    fmt.Println("========================")
+    // Test AddSubGraph
+    g1 = NewGraph()
+    g2 = NewGraph()
+    
+    g1.AddNode("a")
+    g1.SetHead("a")
+    g1.AddNode("b1")
+    g2.AddNode("b2")
+    g1.AddNode("c1")
+    g1.AddNode("c2")
+    g2.AddNode("c3")
+    g2.AddNode("c4")
+    g1.AddUniEdge("a", "b1", 1)
+    //g.AddUniEdge("a", "b2", 1)
+    g1.AddUniEdge("b1", "c1", 1)
+    g1.AddUniEdge("b1", "c2", 1)
+    g2.AddUniEdge("b2", "c3", 1)
+    g2.AddUniEdge("b2", "c4", 1)
+    
+    g1.Print()
+    g2.Print()
+    
+    g1.AddSubGraph(g2)
+    g1.AddUniEdge("a", "b2", 1)
+    g1.Print()
+    
+    g1.GetSubTree("b1").Print()
+    g1.GetSubTree("b2").Print()
 } 
