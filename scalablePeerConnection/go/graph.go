@@ -473,6 +473,45 @@ func (g *Graph) GetAllEdges() []Edge {
 }
 
 // @PASSED
+// Function compare is an auxilary function to simplify the Compare method
+func (g *Graph) compare(t *Graph) []Edge {
+    addedEdges := make([]Edge, 0)
+    subAddedEdges := make([]Edge, 0)
+    if g.HasHead() && t.HasHead() {
+	head := g.GetHead().Value
+	
+	parent := head
+	
+	// Get all the children of the parent
+	edges := g.GetOutEdges(parent)
+	
+	// Note that this method trace one branch to the end before going into
+	// another branch
+	for _, e := range edges {
+	    child := e.Child.Value
+	    if _, exist := t.edges[parent][child]; !exist {
+		addedEdges = append(addedEdges, e)
+	    } 
+	    // Put these here will follow one branch to the end, but it's 
+	    // better to do it the other way, hence commented
+	    /*
+	    subtree := g.GetSubTree(child)
+	    subAddedEdges = subtree.compare(t)
+	    addedEdges = append(addedEdges, subAddedEdges...)
+	    */
+	}
+	
+	for _, e := range edges {
+	    child := e.Child.Value
+	    subtree := g.GetSubTree(child)
+	    subAddedEdges = subtree.compare(t)
+	    addedEdges = append(addedEdges, subAddedEdges...)
+	}
+    }
+    return addedEdges
+}
+
+// @PASSED
 // Compare function compares to graphs and return the differences. Added nodes
 // and added edges are with respect to the target graph in the parameter. 
 func (g *Graph) Compare(t *Graph) ([]Edge, []Edge) {
@@ -481,56 +520,44 @@ func (g *Graph) Compare(t *Graph) ([]Edge, []Edge) {
     
     // Check if our graph has a head, if our graph has a head then we sort
     // the returned edges topologically, if not we send the edges randomly
-    /*if g.HasHead() {
-	head := g.GetHead().Value
-	
-	parent := head
-	for {
-	    // First we check if parent exist in the target graph
-	    
-	    // Get all the children of the parent
-	    edges := g.GetOutEdges(parent)
+    // Note that this assumes a TREE structure
+    if g.HasHead() && t.HasHead() {
+	addedEdges = g.compare(t)
+	removedEdges = t.compare(g)
+    } else {
+	// If there is no head, which means that the graph is not in anyway
+	// directional, then we do not keep Toplogical order
+	for key := range g.nodes {
+	    edges := g.GetOutEdges(key)
 	    for _, e := range edges {
 		parent := e.Parent.Value
 		child := e.Child.Value
-		if _, exist := t.edges[parent][child]; !exist {
+		
+		// If an edge that exists in g but doesn't exist in t, it means 
+		// that this edge is an added edge in g
+		//t.Print()
+		if _, exist := t.edges[parent]; !exist {
+		    addedEdges = append(addedEdges, e)
+		} else if _, exist := t.edges[parent][child]; !exist {
 		    addedEdges = append(addedEdges, e)
 		}
 	    }
 	}
-    }
-    else {*/
-    for key := range g.nodes {
-	edges := g.GetOutEdges(key)
-	for _, e := range edges {
-	    parent := e.Parent.Value
-	    child := e.Child.Value
-	    
-	    // If an edge that exists in g but doesn't exist in t, it means 
-	    // that this edge is an added edge in g
-	    //t.Print()
-	    if _, exist := t.edges[parent]; !exist {
-		addedEdges = append(addedEdges, e)
-	    } else if _, exist := t.edges[parent][child]; !exist {
-		addedEdges = append(addedEdges, e)
+	
+	for key := range t.nodes {
+	    edges := t.GetOutEdges(key)
+	    for _, e := range edges {
+		parent := e.Parent.Value
+		child := e.Child.Value
+		
+		// If an edge that exists in t but doesn't exist in g, it eans
+		// that this edge is a removed edge in g
+		if _, exist := g.edges[parent][child]; !exist {
+		    removedEdges = append(removedEdges, e)
+		}
 	    }
 	}
     }
-    
-    for key := range t.nodes {
-	edges := t.GetOutEdges(key)
-	for _, e := range edges {
-	    parent := e.Parent.Value
-	    child := e.Child.Value
-	    
-	    // If an edge that exists in t but doesn't exist in g, it eans
-	    // that this edge is a removed edge in g
-	    if _, exist := g.edges[parent][child]; !exist {
-		removedEdges = append(removedEdges, e)
-	    }
-	}
-    }
-    //}
     return addedEdges, removedEdges
 }
 

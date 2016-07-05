@@ -74,6 +74,7 @@ func main () {
     g2 := graph.GetDCMST(2)
     g2.Print()
     
+    // Testing Compare
     as, rs := g2.Compare(g1)
     fmt.Printf("[ADD]")
     for _, e := range as {
@@ -85,6 +86,14 @@ func main () {
 	fmt.Printf("%v -> %v ", e.Parent.Value, e.Child.Value)
     }
     fmt.Printf("\n")
+    
+    /* Testing compare
+    as := g2.compare(g1)
+    for _, e := range as {
+	fmt.Printf("%v -> %v ", e.Parent.Value, e.Child.Value)
+    }
+    fmt.Printf("\n")
+    */
     
     fmt.Println("========================")
     // Test AddSubGraph

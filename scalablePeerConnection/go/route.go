@@ -236,13 +236,12 @@ func manageRoom(room chan UserInfo) {
 		    
 		    if len(addedEdges) >0 { // assuming addedEdges are sorted in good orders 
 			/* Now we need to send the complete instruction set from the first changed nodes such that all the sub-connections
-			 * are able to reconnect with no problem. The edges are topologically sorted thanks to Compare function.
-			 * we need to find the first affected node and start to send instruction from that point
-			 * In order to convert a tree to topologically sorted instruction sets
-			 * we hack the Compare function to compare it with an empty tree
+			 * are able to reconnect with no problem. The edges are topologically sorted thanks to Compare function. We need to
+			 * find the first affected node and start to send instruction from that point. In order to convert a tree to 
+			 * topologically sorted instruction sets, we can call the ToplogicalSort method on a given tree which will return 
+			 * the edges in a toplogical order 
 			 */
 			edge := addedEdges[0]
-			empty := NewGraph()
 			subgraph := newTree.GetSubTree(edge.Parent.Value)
 			
 			fmt.Println("<<<<Instruction Tree>>>>")
