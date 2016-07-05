@@ -6,6 +6,9 @@ import (
     "net"
     "bufio"
     "sync"
+    "github.com/googollee/go-socket.io"
+    "net/http"
+    "log"
 )
 
 type PeerInfo struct {
@@ -61,38 +64,87 @@ func (c *Connection) SetConnection(newc net.Conn) {
 
 func main() {
     // Listen for incoming connections.
-    connection = new(Connection)
-    listener, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
-    queue := make(chan UserInfo, 10) // Buffered channel with capacity of 10
+    //queue := make(chan UserInfo, 10) // Buffered channel with capacity of 10
     ins = make(chan Instruction, 10)
     rooms = make(map[string]chan UserInfo, 0)
     //rooms = make(map[string]Room)
     
+    server, err := socketio.NewServer(nil)
+    
     if err != nil {
-	fmt.Println("Error listening:", err.Error())
+        log.Fatal(err)
     }
     
-    // Close the listener when the application closes.
-    defer listener.Close()
-    
-    for {
-	// Listen for an incoming connection.
-	conn, err := listener.Accept()
-	connection.SetConnection(conn)
-	
-	if err != nil {
-	    fmt.Println("Error accepting: ", err.Error())
-	    continue
-	}
-	
-	// Setup connections map
+    server.On("connection", func(so socketio.Socket) {
 	fmt.Println("Connection established")
 	
-	// Handle connections in a new goroutine.
-	go handleRequests(queue)
-	go handleTasks(queue) // Potentially need to increase the number of workers
-	go handleInstructions(ins)
-    }
+        so.On("host", func(data string) {
+	    var userInfo UserInfo
+	    byte_text := []byte(data)
+	    err := json.Unmarshal(byte_text, &userInfo)
+	    if err != nil {
+		log.Fatal(err)
+	    }
+	    newHostHandler(userInfo) // send userInfo to task queue   
+	})
+	
+	so.On("newUser", func(data string) {
+	    var userInfo UserInfo
+	    byte_text := []byte(data)
+	    err := json.Unmarshal(byte_text, &userInfo)
+	    if err != nil {
+		log.Fatal(err)
+	    }
+	    newUserHandler(userInfo) // send userInfo to task queue   ewUserHandler(userInfo) // send userInfo to task queue   
+	    
+	})
+	
+	so.On("disconnectedUser", func(data string) {
+	    var userInfo UserInfo
+	    byte_text := []byte(data)
+	    err := json.Unmarshal(byte_text, &userInfo)
+	    if err != nil {
+		log.Fatal(err)
+	    }
+	    disconnectHandler(userInfo) // send userInfo to task queue   ewUserHandler(userInfo) // send userInfo to task queue   
+	})
+	
+	so.On("disconnection", func() {
+	    fmt.Println("Connection closed")
+	})
+	
+	// May consider moving it into a goroutine
+	go func(so socketio.Socket) {
+	    for instruction := range ins {
+		str, err := json.Marshal(instruction)
+		if err != nil {
+		    fmt.Println("Error listening:", err.Error())
+		    continue
+		}
+		// assuming one signal server
+		//fmt.Println(string(str))
+		fmt.Println("Instruction Sent")
+		so.Emit("data", string(str)) 
+	    }
+	} (so)
+    })
+    
+    server.On("error", func(so socketio.Socket, err error) {
+	log.Println("error:", err)
+    })
+    
+    http.Handle("/", server)
+    log.Println("Serving route on localhost:8888...")
+    log.Fatal(http.ListenAndServe(":8888", nil))
+    
+    
+    // Setup connections map
+    fmt.Println("Connection established")
+    
+    // Handle connections in a new goroutine.
+    //go handleRequests(queue)
+    //go handleTasks(queue) // Potentially need to increase the number of workers
+    //go handleInstructions(ins)
 }
 
 // Handles incoming requests and parse response from json to UserInfo struct
@@ -225,7 +277,7 @@ func manageRoom(room chan UserInfo) {
 		graph.AddNode(username)
 		graph.SetHead(username)
 		fmt.Println("New Room", roomId, "is created")
-		fmt.Println("Currently ", graph.GetTotalNodes(), "users are in the room")
+		// fmt.Println("Currently ", graph.GetTotalNodes(), "users are in the room")
 		ins <- Instruction{Type: "startBroadcasting", Host: username} 
 		
 		if userInfo.Latency != nil { // may be unnecessary
@@ -246,7 +298,7 @@ func manageRoom(room chan UserInfo) {
 		}
 		
 		// Get DCMST and send instructions, assuming the host already exists
-		newTree := graph.GetDCMST(1) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
+		newTree := graph.GetDCMST(2) // parameter is the constraint. 1 = traveling salesman, 2 means a hamitonian path problem aka maximum spanning binary tree 
 		newTree.Print()
 		
 		addedEdges, removedEdges := newTree.Compare(tree)  // addedEdges, removedEdges := graph.Compare(tree, newTree) 
@@ -297,10 +349,10 @@ func manageRoom(room chan UserInfo) {
 		tree = newTree
 		
 		
-	    /* close room signal, it is not used at the moment
-	    case "closeRoom":
-		return
-	    */
+		/* close room signal, it is not used at the moment
+		 *	 c **ase "closeRoom":
+		 *	 return
+		 */
 	}
 	
 	// Close the room when no one is left in the room
