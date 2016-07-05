@@ -1,15 +1,11 @@
+var ClientData = require("./clientData.js");
 
-function DataChannel(p2pConnection, socket, peer, sourceBuffer){
+function DataChannel(p2pConnection, peer){
 	var self = this;
 	var dataChannel;
 	this.p2pConnection = p2pConnection;
-	this.socket = socket;
+	this.socket = ClientData.socket;
 	this.peer = peer;
-	this.sourceBuffer = sourceBuffer;
-	this.chunkUpdating = false;
-	this.chunks = [];
-	this.videoData = [];
-	this.chunkSize = 10000;
 }
 
 DataChannel.prototype.open = function(){
@@ -44,7 +40,7 @@ DataChannel.prototype.open = function(){
 			case MessageEnum.OFFER:
 				console.log("received offer in datachannel");
 				console.log(message);
-				self.setupConnection();
+				self.setupConnectionWithVideo();
 				self.onOffer(message);
 				break;
 
@@ -127,9 +123,6 @@ DataChannel.prototype.onTimeStamp = function(timeStamp){
 DataChannel.prototype.onTimeStampResponse = function(timeStampResponse){
 	var self = this;
 	receiveTime = Date.now();
-	console.log("sendTime is " + message.sendTime);
-	console.log("respondTime is " + message.respondTime);
-	console.log("receiveTime is " + receiveTime);
 
 	this.socket.emit("timeStamp", {
 		type: "timeStamp",
@@ -140,48 +133,7 @@ DataChannel.prototype.onTimeStampResponse = function(timeStampResponse){
 	});
 }
 
-DataChannel.prototype.setupConnection = function(){
-	var self = this;
-	this.p2pConnection.onaddstream = function (e) {
-		console.log(e.stream);
-		console.log(e.stream.id);
-		self.setLocalStream(e.stream);
-		self.startRecording(e.stream);
-		window.localVideo2.src = window.URL.createObjectURL(e.stream);
-	};
-}
-
-DataChannel.prototype.startRecording = function(stream) {
-	// Could improve performace in the future when disconnect by increase buffer size
-	window.sourceBuffer.abort();
-	setInterval(function(){
-		window.localVideo.currentTime = 2000;
-	}, 10000);
-
-	var self = this;
-	var mediaRecorder = new MediaRecorder(stream);
-//	will freeze if lose socket	
-	mediaRecorder.start(10);
-
-	mediaRecorder.ondataavailable = function (e) {
-		var reader = new FileReader();
-		reader.addEventListener("loadend", function () {
-			var arr = new Uint8Array(reader.result);
-			self.videoData.push(arr);
-			if (!window.sourceBuffer.updating){
-				var chunk = self.videoData.shift();
-				window.sourceBuffer.appendBuffer(chunk);
-			}
-		});
-		reader.readAsArrayBuffer(e.data);
-	};
-
-	mediaRecorder.onstart = function(){
-		console.log('Started, state = ' + mediaRecorder.state);
-	};
-}
-
-DataChannel.prototype.setLocalStream = function(stream){
+DataChannel.prototype.setupConnectionWithVideo = function(){
 }
 
 function isJson(str) {

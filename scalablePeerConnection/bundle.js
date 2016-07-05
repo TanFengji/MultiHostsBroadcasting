@@ -1,18 +1,16 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.WebRTC = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 
 },{}],2:[function(require,module,exports){
-var PeerConnection = require('./peerconnection.js');
-var Indicator = require('./indicator.js');
+var ClientData = require("./clientData.js");
+var PeerConnection = require("./peerconnection.js");
+var Indicator = require("./indicator.js");
 
 function AllConnection(){
-	var parentDataChannel;
-	var local;
 	var stream;
-	var socket;
-	var configuration;
 	var localVideo;
 	var sourceBuffer;
-	this.peerList = [];
+	var user;
+	var socket;
 	this.connection = {};
 	this.indicator = new Indicator();
 	this.ms = new MediaSource();
@@ -23,24 +21,19 @@ function AllConnection(){
 }
 
 //initialise the setup of AllConnection
-AllConnection.prototype.init = function(user, socket, config){
+AllConnection.prototype.init = function(){
 	var self = this;
-	var sourceBuffer;
-	this.local = user;
-	this.socket = socket;
-	this.configuration = config;
+	this.user = ClientData.getUser();
+	this.socket = ClientData.getSocket();
 	this.localVideo = document.getElementById("localVideo");
 	this.localVideo.src = window.URL.createObjectURL(this.ms);
 	this.localVideo.autoplay = true;
-	this.ms.addEventListener('sourceopen', function(){
+	this.ms.addEventListener("sourceopen", function(){
 		// this.readyState === 'open'. Add source buffer that expects webm chunks.
 		self.sourceBuffer = self.ms.addSourceBuffer('video/webm; codecs="vorbis,vp9"');
 		self.sourceBuffer.mode = "sequence";
-		window.sourceBuffer = self.sourceBuffer;
-		console.log(self.sourceBuffer);
 	});
-	window.localVideo = this.localVideo;
-	window.localVideo2 = document.getElementById("localVideo2");
+	this.localVideo2 = document.getElementById("localVideo2");
 }
 
 //initialise the setup of own camera
@@ -62,17 +55,16 @@ AllConnection.prototype.initCamera = function(){
 //initialise a connection with peers
 AllConnection.prototype.initConnection = function(peer){	
 	var self = this;
-	self.localVideo = document.getElementById("localVideo");
-	self.localVideo.autoplay = true;
-	self.connection[peer] = new PeerConnection(self.local, peer, self.socket, self.configuration, self.sourceBuffer);
+
+	self.connection[peer] = new PeerConnection(peer);
 	self.connection[peer].startConnection(function(){
 		self.connection[peer].openDataChannel(function(){
-			self.connection[peer].setupPeerConnection(peer, function(){
+			self.connection[peer].setupPeerConnection( function(){
 				self.connection[peer].makeOffer( function(offer){
 					self.connection[peer].p2pConnection.setLocalDescription(offer,function(){}, function(){});
 					self.socket.emit("SDPOffer", {
 						type: "SDPOffer",
-						local: self.local,
+						local: self.user,
 						remote: peer,
 						offer: offer
 					});
@@ -85,17 +77,15 @@ AllConnection.prototype.initConnection = function(peer){
 //when receive an spd offer
 AllConnection.prototype.onOffer = function(sdpOffer, cb){
 	var self = this;
-	self.localVideo = document.getElementById("localVideo");
-	self.localVideo.autoplay = true;
 	var peer = sdpOffer.remote;
-	self.connection[peer] = new PeerConnection(self.local, peer, self.socket, self.configuration, self.sourceBuffer);
+	self.connection[peer] = new PeerConnection(peer);
 	self.connection[peer].startConnection(function(){
 		self.connection[peer].openDataChannel(function(){
-			self.connection[peer].setupPeerConnection(peer, function(){
+			self.connection[peer].setupPeerConnection(function(){
 				self.connection[sdpOffer.remote].receiveOffer(sdpOffer.offer, function(sdpAnswer){
 					self.socket.emit("SDPAnswer", {
 						type: "SDPAnswer",
-						local: self.local,
+						local: self.user,
 						remote: sdpOffer.remote,
 						answer: sdpAnswer
 					});
@@ -105,10 +95,6 @@ AllConnection.prototype.onOffer = function(sdpOffer, cb){
 	});
 }
 
-//set the ICE server 
-AllConnection.prototype.setIceServer = function(iceServers){
-	this.iceServers = iceServers;
-}
 
 AllConnection.prototype.addVideo = function(peer){
 	var self = this;
@@ -117,16 +103,49 @@ AllConnection.prototype.addVideo = function(peer){
 
 AllConnection.prototype.onAddVideo = function(peer){
 	var self = this;
-	this.connection[peer].dataChannel.setLocalStream = function(stream){
-		self.stream = stream;
-		console.log(self.stream);
-	};
+	this.connection[peer].dataChannel.setupConnectionWithVideo = function(){
+		console.log("hello");
+		console.log(self);
+		self.connection[peer].p2pConnection.onaddstream = function (e) {
+			self.setLocalStream(e.stream);
+			self.startRecording(e.stream);
+			self.localVideo2.src = window.URL.createObjectURL(e.stream);
+		};
+	}
 }
 
-AllConnection.prototype.setLocalStream = function(stream){
-	console.log("set local stream in allconnection");
-	console.log(stream);
+AllConnection.prototype.setLocalStream = function(stream) {
 	this.stream = stream;
+}
+
+AllConnection.prototype.startRecording = function(stream) {
+	// Could improve performace in the future when disconnect by increase buffer size
+	this.sourceBuffer.abort();
+	setInterval(function(){
+		this.localVideo.currentTime = 2000;
+	}, 10000);
+
+	var self = this;
+	var mediaRecorder = new MediaRecorder(stream);
+//	will freeze if lose socket	
+	mediaRecorder.start(10);
+
+	mediaRecorder.ondataavailable = function (e) {
+		var reader = new FileReader();
+		reader.addEventListener("loadend", function () {
+			var arr = new Uint8Array(reader.result);
+			self.videoData.push(arr);
+			if (!self.sourceBuffer.updating){
+				var chunk = self.videoData.shift();
+				self.sourceBuffer.appendBuffer(chunk);
+			}
+		});
+		reader.readAsArrayBuffer(e.data);
+	};
+
+	mediaRecorder.onstart = function(){
+		console.log("Started, state = " + mediaRecorder.state);
+	};
 }
 
 AllConnection.prototype.stopForwarding = function(peer){
@@ -142,6 +161,9 @@ AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
 
 //when receive an ice candidate
 AllConnection.prototype.onCandidate = function(iceCandidate){
+	console.log("remote of icecandidate");
+	console.log(iceCandidate.remote);
+	console.log(this.connection[iceCandidate.remote]);
 	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
 }
 
@@ -156,19 +178,49 @@ AllConnection.prototype.deleteConnection = function(peer){
 }
 
 module.exports = AllConnection;
-},{"./indicator.js":4,"./peerconnection.js":52}],3:[function(require,module,exports){
+},{"./clientData.js":3,"./indicator.js":5,"./peerconnection.js":53}],3:[function(require,module,exports){
+function ClientData(){
+	var user;
+	var socket;
+	var iceServerConfig;
+}
 
-function DataChannel(p2pConnection, socket, peer, sourceBuffer){
+ClientData.prototype.setSocket = function(socket){
+	this.socket = socket;
+}
+
+ClientData.prototype.getSocket = function(){
+	return this.socket;
+}
+
+ClientData.prototype.setIceServerConfig = function(config){
+	this.iceServerConfig = config;
+}
+
+ClientData.prototype.getIceServerConfig = function(){
+	return this.iceServerConfig;
+}
+
+ClientData.prototype.setUser = function(user){
+	this.user = user;
+}
+
+ClientData.prototype.getUser = function(){
+	return this.user;
+}
+
+cd = new ClientData();
+module.exports = cd;
+
+},{}],4:[function(require,module,exports){
+var ClientData = require("./clientData.js");
+
+function DataChannel(p2pConnection, peer){
 	var self = this;
 	var dataChannel;
 	this.p2pConnection = p2pConnection;
-	this.socket = socket;
+	this.socket = ClientData.socket;
 	this.peer = peer;
-	this.sourceBuffer = sourceBuffer;
-	this.chunkUpdating = false;
-	this.chunks = [];
-	this.videoData = [];
-	this.chunkSize = 10000;
 }
 
 DataChannel.prototype.open = function(){
@@ -203,7 +255,7 @@ DataChannel.prototype.open = function(){
 			case MessageEnum.OFFER:
 				console.log("received offer in datachannel");
 				console.log(message);
-				self.setupConnection();
+				self.setupConnectionWithVideo();
 				self.onOffer(message);
 				break;
 
@@ -286,9 +338,6 @@ DataChannel.prototype.onTimeStamp = function(timeStamp){
 DataChannel.prototype.onTimeStampResponse = function(timeStampResponse){
 	var self = this;
 	receiveTime = Date.now();
-	console.log("sendTime is " + message.sendTime);
-	console.log("respondTime is " + message.respondTime);
-	console.log("receiveTime is " + receiveTime);
 
 	this.socket.emit("timeStamp", {
 		type: "timeStamp",
@@ -299,48 +348,7 @@ DataChannel.prototype.onTimeStampResponse = function(timeStampResponse){
 	});
 }
 
-DataChannel.prototype.setupConnection = function(){
-	var self = this;
-	this.p2pConnection.onaddstream = function (e) {
-		console.log(e.stream);
-		console.log(e.stream.id);
-		self.setLocalStream(e.stream);
-		self.startRecording(e.stream);
-		window.localVideo2.src = window.URL.createObjectURL(e.stream);
-	};
-}
-
-DataChannel.prototype.startRecording = function(stream) {
-	// Could improve performace in the future when disconnect by increase buffer size
-	window.sourceBuffer.abort();
-	setInterval(function(){
-		window.localVideo.currentTime = 2000;
-	}, 10000);
-
-	var self = this;
-	var mediaRecorder = new MediaRecorder(stream);
-//	will freeze if lose socket	
-	mediaRecorder.start(10);
-
-	mediaRecorder.ondataavailable = function (e) {
-		var reader = new FileReader();
-		reader.addEventListener("loadend", function () {
-			var arr = new Uint8Array(reader.result);
-			self.videoData.push(arr);
-			if (!window.sourceBuffer.updating){
-				var chunk = self.videoData.shift();
-				window.sourceBuffer.appendBuffer(chunk);
-			}
-		});
-		reader.readAsArrayBuffer(e.data);
-	};
-
-	mediaRecorder.onstart = function(){
-		console.log('Started, state = ' + mediaRecorder.state);
-	};
-}
-
-DataChannel.prototype.setLocalStream = function(stream){
+DataChannel.prototype.setupConnectionWithVideo = function(){
 }
 
 function isJson(str) {
@@ -353,7 +361,7 @@ function isJson(str) {
 }
 
 module.exports = DataChannel;
-},{}],4:[function(require,module,exports){
+},{"./clientData.js":3}],5:[function(require,module,exports){
 function Indicator(){}
 
 //indicate whether the browser supports user media
@@ -377,7 +385,7 @@ Indicator.prototype.hasRTCPeerConnection = function() {
 }
 
 module.exports = Indicator;
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -471,7 +479,7 @@ exports.connect = lookup;
 exports.Manager = require('./manager');
 exports.Socket = require('./socket');
 
-},{"./manager":6,"./socket":8,"./url":9,"debug":13,"socket.io-parser":46}],6:[function(require,module,exports){
+},{"./manager":7,"./socket":9,"./url":10,"debug":14,"socket.io-parser":47}],7:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -1030,7 +1038,7 @@ Manager.prototype.onreconnect = function(){
   this.emitAll('reconnect', attempt);
 };
 
-},{"./on":7,"./socket":8,"backo2":10,"component-bind":11,"component-emitter":12,"debug":13,"engine.io-client":16,"indexof":43,"socket.io-parser":46}],7:[function(require,module,exports){
+},{"./on":8,"./socket":9,"backo2":11,"component-bind":12,"component-emitter":13,"debug":14,"engine.io-client":17,"indexof":44,"socket.io-parser":47}],8:[function(require,module,exports){
 
 /**
  * Module exports.
@@ -1056,7 +1064,7 @@ function on(obj, ev, fn) {
   };
 }
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -1470,7 +1478,7 @@ Socket.prototype.compress = function(compress){
   return this;
 };
 
-},{"./on":7,"component-bind":11,"component-emitter":12,"debug":13,"has-binary":41,"socket.io-parser":46,"to-array":51}],9:[function(require,module,exports){
+},{"./on":8,"component-bind":12,"component-emitter":13,"debug":14,"has-binary":42,"socket.io-parser":47,"to-array":52}],10:[function(require,module,exports){
 (function (global){
 
 /**
@@ -1550,7 +1558,7 @@ function url(uri, loc){
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"debug":13,"parseuri":44}],10:[function(require,module,exports){
+},{"debug":14,"parseuri":45}],11:[function(require,module,exports){
 
 /**
  * Expose `Backoff`.
@@ -1637,7 +1645,7 @@ Backoff.prototype.setJitter = function(jitter){
 };
 
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 /**
  * Slice reference.
  */
@@ -1662,7 +1670,7 @@ module.exports = function(obj, fn){
   }
 };
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 
 /**
  * Expose `Emitter`.
@@ -1825,7 +1833,7 @@ Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 
 /**
  * This is the web browser implementation of `debug()`.
@@ -1995,7 +2003,7 @@ function localstorage(){
   } catch (e) {}
 }
 
-},{"./debug":14}],14:[function(require,module,exports){
+},{"./debug":15}],15:[function(require,module,exports){
 
 /**
  * This is the common logic for both the Node.js and web browser
@@ -2194,7 +2202,7 @@ function coerce(val) {
   return val;
 }
 
-},{"ms":15}],15:[function(require,module,exports){
+},{"ms":16}],16:[function(require,module,exports){
 /**
  * Helpers.
  */
@@ -2321,11 +2329,11 @@ function plural(ms, n, name) {
   return Math.ceil(ms / n) + ' ' + name + 's';
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 
 module.exports =  require('./lib/');
 
-},{"./lib/":17}],17:[function(require,module,exports){
+},{"./lib/":18}],18:[function(require,module,exports){
 
 module.exports = require('./socket');
 
@@ -2337,7 +2345,7 @@ module.exports = require('./socket');
  */
 module.exports.parser = require('engine.io-parser');
 
-},{"./socket":18,"engine.io-parser":28}],18:[function(require,module,exports){
+},{"./socket":19,"engine.io-parser":29}],19:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -3069,7 +3077,7 @@ Socket.prototype.filterUpgrades = function (upgrades) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./transport":19,"./transports":20,"component-emitter":26,"debug":13,"engine.io-parser":28,"indexof":43,"parsejson":38,"parseqs":39,"parseuri":44}],19:[function(require,module,exports){
+},{"./transport":20,"./transports":21,"component-emitter":27,"debug":14,"engine.io-parser":29,"indexof":44,"parsejson":39,"parseqs":40,"parseuri":45}],20:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -3226,7 +3234,7 @@ Transport.prototype.onClose = function () {
   this.emit('close');
 };
 
-},{"component-emitter":26,"engine.io-parser":28}],20:[function(require,module,exports){
+},{"component-emitter":27,"engine.io-parser":29}],21:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies
@@ -3283,7 +3291,7 @@ function polling(opts){
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./polling-jsonp":21,"./polling-xhr":22,"./websocket":24,"xmlhttprequest-ssl":25}],21:[function(require,module,exports){
+},{"./polling-jsonp":22,"./polling-xhr":23,"./websocket":25,"xmlhttprequest-ssl":26}],22:[function(require,module,exports){
 (function (global){
 
 /**
@@ -3525,7 +3533,7 @@ JSONPPolling.prototype.doWrite = function (data, fn) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./polling":23,"component-inherit":27}],22:[function(require,module,exports){
+},{"./polling":24,"component-inherit":28}],23:[function(require,module,exports){
 (function (global){
 /**
  * Module requirements.
@@ -3941,7 +3949,7 @@ function unloadHandler() {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./polling":23,"component-emitter":26,"component-inherit":27,"debug":13,"xmlhttprequest-ssl":25}],23:[function(require,module,exports){
+},{"./polling":24,"component-emitter":27,"component-inherit":28,"debug":14,"xmlhttprequest-ssl":26}],24:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -4190,7 +4198,7 @@ Polling.prototype.uri = function(){
   return schema + '://' + (ipv6 ? '[' + this.hostname + ']' : this.hostname) + port + this.path + query;
 };
 
-},{"../transport":19,"component-inherit":27,"debug":13,"engine.io-parser":28,"parseqs":39,"xmlhttprequest-ssl":25,"yeast":40}],24:[function(require,module,exports){
+},{"../transport":20,"component-inherit":28,"debug":14,"engine.io-parser":29,"parseqs":40,"xmlhttprequest-ssl":26,"yeast":41}],25:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -4482,7 +4490,7 @@ WS.prototype.check = function(){
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../transport":19,"component-inherit":27,"debug":13,"engine.io-parser":28,"parseqs":39,"ws":1,"yeast":40}],25:[function(require,module,exports){
+},{"../transport":20,"component-inherit":28,"debug":14,"engine.io-parser":29,"parseqs":40,"ws":1,"yeast":41}],26:[function(require,module,exports){
 // browser shim for xmlhttprequest module
 var hasCORS = require('has-cors');
 
@@ -4520,7 +4528,7 @@ module.exports = function(opts) {
   }
 }
 
-},{"has-cors":37}],26:[function(require,module,exports){
+},{"has-cors":38}],27:[function(require,module,exports){
 
 /**
  * Expose `Emitter`.
@@ -4686,7 +4694,7 @@ Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 
 module.exports = function(a, b){
   var fn = function(){};
@@ -4694,7 +4702,7 @@ module.exports = function(a, b){
   a.prototype = new fn;
   a.prototype.constructor = a;
 };
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 (function (global){
 /**
  * Module dependencies.
@@ -5292,7 +5300,7 @@ exports.decodePayloadAsBinary = function (data, binaryType, callback) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./keys":29,"after":30,"arraybuffer.slice":31,"base64-arraybuffer":32,"blob":33,"has-binary":34,"utf8":36}],29:[function(require,module,exports){
+},{"./keys":30,"after":31,"arraybuffer.slice":32,"base64-arraybuffer":33,"blob":34,"has-binary":35,"utf8":37}],30:[function(require,module,exports){
 
 /**
  * Gets the keys for an object.
@@ -5313,7 +5321,7 @@ module.exports = Object.keys || function keys (obj){
   return arr;
 };
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 module.exports = after
 
 function after(count, callback, err_cb) {
@@ -5343,7 +5351,7 @@ function after(count, callback, err_cb) {
 
 function noop() {}
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 /**
  * An abstraction for slicing an arraybuffer even when
  * ArrayBuffer.prototype.slice is not supported
@@ -5374,7 +5382,7 @@ module.exports = function(arraybuffer, start, end) {
   return result.buffer;
 };
 
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /*
  * base64-arraybuffer
  * https://github.com/niklasvh/base64-arraybuffer
@@ -5435,7 +5443,7 @@ module.exports = function(arraybuffer, start, end) {
   };
 })("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 (function (global){
 /**
  * Create a blob builder even when vendor prefixes exist
@@ -5535,7 +5543,7 @@ module.exports = (function() {
 })();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 (function (global){
 
 /*
@@ -5597,12 +5605,12 @@ function hasBinary(data) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"isarray":35}],35:[function(require,module,exports){
+},{"isarray":36}],36:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],36:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 (function (global){
 /*! https://mths.be/utf8js v2.0.0 by @mathias */
 ;(function(root) {
@@ -5850,7 +5858,7 @@ module.exports = Array.isArray || function (arr) {
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],37:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 
 /**
  * Module exports.
@@ -5869,7 +5877,7 @@ try {
   module.exports = false;
 }
 
-},{}],38:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 (function (global){
 /**
  * JSON parse.
@@ -5904,7 +5912,7 @@ module.exports = function parsejson(data) {
   }
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 /**
  * Compiles a querystring
  * Returns string representation of the object
@@ -5943,7 +5951,7 @@ exports.decode = function(qs){
   return qry;
 };
 
-},{}],40:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 'use strict';
 
 var alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'.split('')
@@ -6013,7 +6021,7 @@ yeast.encode = encode;
 yeast.decode = decode;
 module.exports = yeast;
 
-},{}],41:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 (function (global){
 
 /*
@@ -6076,9 +6084,9 @@ function hasBinary(data) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"isarray":42}],42:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],43:[function(require,module,exports){
+},{"isarray":43}],43:[function(require,module,exports){
+arguments[4][36][0].apply(exports,arguments)
+},{"dup":36}],44:[function(require,module,exports){
 
 var indexOf = [].indexOf;
 
@@ -6089,7 +6097,7 @@ module.exports = function(arr, obj){
   }
   return -1;
 };
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 /**
  * Parses an URI
  *
@@ -6130,7 +6138,7 @@ module.exports = function parseuri(str) {
     return uri;
 };
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 (function (global){
 /*global Blob,File*/
 
@@ -6275,7 +6283,7 @@ exports.removeBlobs = function(data, callback) {
 };
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./is-buffer":47,"isarray":49}],46:[function(require,module,exports){
+},{"./is-buffer":48,"isarray":50}],47:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -6677,7 +6685,7 @@ function error(data){
   };
 }
 
-},{"./binary":45,"./is-buffer":47,"component-emitter":48,"debug":13,"isarray":49,"json3":50}],47:[function(require,module,exports){
+},{"./binary":46,"./is-buffer":48,"component-emitter":49,"debug":14,"isarray":50,"json3":51}],48:[function(require,module,exports){
 (function (global){
 
 module.exports = isBuf;
@@ -6694,11 +6702,11 @@ function isBuf(obj) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],48:[function(require,module,exports){
-arguments[4][26][0].apply(exports,arguments)
-},{"dup":26}],49:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],50:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27}],50:[function(require,module,exports){
+arguments[4][36][0].apply(exports,arguments)
+},{"dup":36}],51:[function(require,module,exports){
 (function (global){
 /*! JSON v3.3.2 | http://bestiejs.github.io/json3 | Copyright 2012-2014, Kit Cambridge | http://kit.mit-license.org */
 ;(function () {
@@ -7604,7 +7612,7 @@ arguments[4][35][0].apply(exports,arguments)
 }).call(this);
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],51:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 module.exports = toArray
 
 function toArray(list, index) {
@@ -7619,22 +7627,21 @@ function toArray(list, index) {
     return array
 }
 
-},{}],52:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
+var ClientData = require("./clientData.js");
 var DataChannel = require('./dataChannel.js');
 
-function PeerConnection(local, peer, socket, config, sourceBuffer){
+function PeerConnection(peer){
 	var p2pConnection;
 	var indicator;
 	var dataChannel;
-	this.sourceBuffer = sourceBuffer;
-	this.user = local;
-	this.remote = peer;
-	this.socket = socket;
-	this.configuration = config;
+	this.peer = peer;
+	this.user = ClientData.getUser();
+	this.socket = ClientData.getSocket();
 }
 
 //Visitor setup the p2p connection with a peer
-PeerConnection.prototype.setupPeerConnection = function(peer, cb) {
+PeerConnection.prototype.setupPeerConnection = function(cb) {
 	var self = this;
 
 //	Setup ice handling
@@ -7643,7 +7650,7 @@ PeerConnection.prototype.setupPeerConnection = function(peer, cb) {
 			self.socket.emit("candidate", {
 				type: "candidate",
 				local: self.user,
-				remote: peer,
+				remote: self.peer,
 				candidate: event.candidate
 			});
 		}
@@ -7653,15 +7660,13 @@ PeerConnection.prototype.setupPeerConnection = function(peer, cb) {
 
 //initialise p2pconnection at the start of a peer connection 
 PeerConnection.prototype.startConnection = function(cb){
-	this.p2pConnection = new RTCPeerConnection(this.configuration);
-	console.log("window");
-	window.p2pConnection = this.p2pConnection;//debug
+	this.p2pConnection = new RTCPeerConnection(ClientData.getIceServerConfig());
 	cb();
 }
 
 PeerConnection.prototype.openDataChannel = function(cb){
 	var self = this;
-	this.dataChannel = new DataChannel(self.p2pConnection, self.socket, self.remote, self.sourceBuffer);
+	this.dataChannel = new DataChannel(self.p2pConnection, self.peer);
 	this.dataChannel.open();
 	cb();
 }
@@ -7706,7 +7711,6 @@ PeerConnection.prototype.receiveAnswer = function(sdpAnswer){
 PeerConnection.prototype.addVideo = function(stream){
 	var self = this;
 	this.p2pConnection.addStream(stream);
-	console.log(stream);
 	this.makeOffer( function(sdpOffer){
 		sdpOffer.sdp = sdpOffer.sdp.replace(/a=sendrecv/g,"a=sendonly");
 		self.p2pConnection.setLocalDescription(sdpOffer,function(){}, function(){});
@@ -7723,9 +7727,10 @@ PeerConnection.prototype.addCandidate = function(iceCandidate) {
 }
 
 module.exports = PeerConnection;
-},{"./dataChannel.js":3}],53:[function(require,module,exports){
-var AllConnection = require('./allconnection.js');
-var io = require('socket.io-client');
+},{"./clientData.js":3,"./dataChannel.js":4}],54:[function(require,module,exports){
+var ClientData = require("./clientData.js");
+var AllConnection = require("./allconnection.js");
+var io = require("socket.io-client");
 
 function WebRTC(server){
 	var self = this;
@@ -7739,6 +7744,7 @@ function WebRTC(server){
 	this.latencyListSize = 0;
 	this.allConnection = new AllConnection();;
 	this.socket = io(server);
+	ClientData.setSocket(this.socket);
 
 	// when a datachannel setup ready
 	self.socket.on("dataChannelStatus", function(dataChannelStatusData){
@@ -7838,9 +7844,6 @@ function WebRTC(server){
 		});
 	});
 
-	self.socket.on("localStream", function(localStream){
-		self.setLocalStream(localStream.stream);
-	});
 }
 
 //find more details of following api in readme
@@ -7849,8 +7852,10 @@ WebRTC.prototype.login = function(userName, successCallback, failCallback) {
 	this.socket.emit("login", userName);
 	this.socket.on("login", function(loginResponse){
 		if (loginResponse.status === "success") {
+			ClientData.setUser(loginResponse.userName);
+			ClientData.setIceServerConfig(loginResponse.config);
 			self.user = loginResponse.userName;
-			self.allConnection.init(loginResponse.userName, self.socket, loginResponse.config);
+			self.allConnection.init();
 			successCallback();
 		} else if (loginResponse.status === "fail") {
 			failCallback();
@@ -7938,10 +7943,6 @@ WebRTC.prototype.clearTimeStamp = function(){
 	this.latencyListSize = 0;
 }
 
-WebRTC.prototype.setLocalStream = function(stream){
-	this.allConnection.setLocalStream(stream);
-}
-
 WebRTC.prototype.onStartBroadcasting = function(cb){
 	this.allConnection.initCamera();
 	cb();
@@ -7970,5 +7971,5 @@ WebRTC.prototype.sendTaskStatus = function(){
 
 module.exports = WebRTC;
 
-},{"./allconnection.js":2,"socket.io-client":5}]},{},[53])(53)
+},{"./allconnection.js":2,"./clientData.js":3,"socket.io-client":6}]},{},[54])(54)
 });

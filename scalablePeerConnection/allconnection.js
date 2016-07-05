@@ -1,15 +1,13 @@
-var PeerConnection = require('./peerconnection.js');
-var Indicator = require('./indicator.js');
+var ClientData = require("./clientData.js");
+var PeerConnection = require("./peerconnection.js");
+var Indicator = require("./indicator.js");
 
 function AllConnection(){
-	var parentDataChannel;
-	var local;
 	var stream;
-	var socket;
-	var configuration;
 	var localVideo;
 	var sourceBuffer;
-	this.peerList = [];
+	var user;
+	var socket;
 	this.connection = {};
 	this.indicator = new Indicator();
 	this.ms = new MediaSource();
@@ -20,24 +18,19 @@ function AllConnection(){
 }
 
 //initialise the setup of AllConnection
-AllConnection.prototype.init = function(user, socket, config){
+AllConnection.prototype.init = function(){
 	var self = this;
-	var sourceBuffer;
-	this.local = user;
-	this.socket = socket;
-	this.configuration = config;
+	this.user = ClientData.getUser();
+	this.socket = ClientData.getSocket();
 	this.localVideo = document.getElementById("localVideo");
 	this.localVideo.src = window.URL.createObjectURL(this.ms);
 	this.localVideo.autoplay = true;
-	this.ms.addEventListener('sourceopen', function(){
+	this.ms.addEventListener("sourceopen", function(){
 		// this.readyState === 'open'. Add source buffer that expects webm chunks.
 		self.sourceBuffer = self.ms.addSourceBuffer('video/webm; codecs="vorbis,vp9"');
 		self.sourceBuffer.mode = "sequence";
-		window.sourceBuffer = self.sourceBuffer;
-		console.log(self.sourceBuffer);
 	});
-	window.localVideo = this.localVideo;
-	window.localVideo2 = document.getElementById("localVideo2");
+	this.localVideo2 = document.getElementById("localVideo2");
 }
 
 //initialise the setup of own camera
@@ -59,17 +52,16 @@ AllConnection.prototype.initCamera = function(){
 //initialise a connection with peers
 AllConnection.prototype.initConnection = function(peer){	
 	var self = this;
-	self.localVideo = document.getElementById("localVideo");
-	self.localVideo.autoplay = true;
-	self.connection[peer] = new PeerConnection(self.local, peer, self.socket, self.configuration, self.sourceBuffer);
+
+	self.connection[peer] = new PeerConnection(peer);
 	self.connection[peer].startConnection(function(){
 		self.connection[peer].openDataChannel(function(){
-			self.connection[peer].setupPeerConnection(peer, function(){
+			self.connection[peer].setupPeerConnection( function(){
 				self.connection[peer].makeOffer( function(offer){
 					self.connection[peer].p2pConnection.setLocalDescription(offer,function(){}, function(){});
 					self.socket.emit("SDPOffer", {
 						type: "SDPOffer",
-						local: self.local,
+						local: self.user,
 						remote: peer,
 						offer: offer
 					});
@@ -82,17 +74,15 @@ AllConnection.prototype.initConnection = function(peer){
 //when receive an spd offer
 AllConnection.prototype.onOffer = function(sdpOffer, cb){
 	var self = this;
-	self.localVideo = document.getElementById("localVideo");
-	self.localVideo.autoplay = true;
 	var peer = sdpOffer.remote;
-	self.connection[peer] = new PeerConnection(self.local, peer, self.socket, self.configuration, self.sourceBuffer);
+	self.connection[peer] = new PeerConnection(peer);
 	self.connection[peer].startConnection(function(){
 		self.connection[peer].openDataChannel(function(){
-			self.connection[peer].setupPeerConnection(peer, function(){
+			self.connection[peer].setupPeerConnection(function(){
 				self.connection[sdpOffer.remote].receiveOffer(sdpOffer.offer, function(sdpAnswer){
 					self.socket.emit("SDPAnswer", {
 						type: "SDPAnswer",
-						local: self.local,
+						local: self.user,
 						remote: sdpOffer.remote,
 						answer: sdpAnswer
 					});
@@ -102,10 +92,6 @@ AllConnection.prototype.onOffer = function(sdpOffer, cb){
 	});
 }
 
-//set the ICE server 
-AllConnection.prototype.setIceServer = function(iceServers){
-	this.iceServers = iceServers;
-}
 
 AllConnection.prototype.addVideo = function(peer){
 	var self = this;
@@ -114,16 +100,49 @@ AllConnection.prototype.addVideo = function(peer){
 
 AllConnection.prototype.onAddVideo = function(peer){
 	var self = this;
-	this.connection[peer].dataChannel.setLocalStream = function(stream){
-		self.stream = stream;
-		console.log(self.stream);
-	};
+	this.connection[peer].dataChannel.setupConnectionWithVideo = function(){
+		console.log("hello");
+		console.log(self);
+		self.connection[peer].p2pConnection.onaddstream = function (e) {
+			self.setLocalStream(e.stream);
+			self.startRecording(e.stream);
+			self.localVideo2.src = window.URL.createObjectURL(e.stream);
+		};
+	}
 }
 
-AllConnection.prototype.setLocalStream = function(stream){
-	console.log("set local stream in allconnection");
-	console.log(stream);
+AllConnection.prototype.setLocalStream = function(stream) {
 	this.stream = stream;
+}
+
+AllConnection.prototype.startRecording = function(stream) {
+	// Could improve performace in the future when disconnect by increase buffer size
+	this.sourceBuffer.abort();
+	setInterval(function(){
+		this.localVideo.currentTime = 2000;
+	}, 10000);
+
+	var self = this;
+	var mediaRecorder = new MediaRecorder(stream);
+//	will freeze if lose socket	
+	mediaRecorder.start(10);
+
+	mediaRecorder.ondataavailable = function (e) {
+		var reader = new FileReader();
+		reader.addEventListener("loadend", function () {
+			var arr = new Uint8Array(reader.result);
+			self.videoData.push(arr);
+			if (!self.sourceBuffer.updating){
+				var chunk = self.videoData.shift();
+				self.sourceBuffer.appendBuffer(chunk);
+			}
+		});
+		reader.readAsArrayBuffer(e.data);
+	};
+
+	mediaRecorder.onstart = function(){
+		console.log("Started, state = " + mediaRecorder.state);
+	};
 }
 
 AllConnection.prototype.stopForwarding = function(peer){
@@ -139,6 +158,9 @@ AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
 
 //when receive an ice candidate
 AllConnection.prototype.onCandidate = function(iceCandidate){
+	console.log("remote of icecandidate");
+	console.log(iceCandidate.remote);
+	console.log(this.connection[iceCandidate.remote]);
 	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
 }
 
