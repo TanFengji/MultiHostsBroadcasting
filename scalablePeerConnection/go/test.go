@@ -115,4 +115,9 @@ func main () {
     
     g1.GetSubTree("b1").Print()
     g1.GetSubTree("b2").Print()
+    
+    edges = g1.ToplogicalSort()
+    for _, e := range edges {
+	fmt.Printf("%v -> %v \n", e.Parent.Value, e.Child.Value)
+    }
 } 

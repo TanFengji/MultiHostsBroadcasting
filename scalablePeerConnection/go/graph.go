@@ -428,6 +428,7 @@ func (g *Graph) GetDCMST(deg int) *Graph {
     return dcmst
 }
 
+// @PASSED
 func (g *Graph) Print() {
     nodes := g.GetAllNodes()
     fmt.Printf("[PRINT] Nodes = ")
@@ -444,6 +445,7 @@ func (g *Graph) Print() {
     fmt.Printf("\n")
 }
 
+// @PASSED
 // GetAllEdges function returns all nodes of the graph
 func (g *Graph) GetAllNodes() []Node {
     nodes := make([]Node, 0)
@@ -454,6 +456,7 @@ func (g *Graph) GetAllNodes() []Node {
     return nodes
 }
 
+// @PASSED
 // GetAllEdges function returns all edges of the graph
 func (g *Graph) GetAllEdges() []Edge {
     edges := make([]Edge, 0)
@@ -476,6 +479,27 @@ func (g *Graph) Compare(t *Graph) ([]Edge, []Edge) {
     addedEdges := make([]Edge, 0)
     removedEdges := make([]Edge, 0)
     
+    // Check if our graph has a head, if our graph has a head then we sort
+    // the returned edges topologically, if not we send the edges randomly
+    /*if g.HasHead() {
+	head := g.GetHead().Value
+	
+	parent := head
+	for {
+	    // First we check if parent exist in the target graph
+	    
+	    // Get all the children of the parent
+	    edges := g.GetOutEdges(parent)
+	    for _, e := range edges {
+		parent := e.Parent.Value
+		child := e.Child.Value
+		if _, exist := t.edges[parent][child]; !exist {
+		    addedEdges = append(addedEdges, e)
+		}
+	    }
+	}
+    }
+    else {*/
     for key := range g.nodes {
 	edges := g.GetOutEdges(key)
 	for _, e := range edges {
@@ -506,6 +530,7 @@ func (g *Graph) Compare(t *Graph) ([]Edge, []Edge) {
 	    }
 	}
     }
+    //}
     return addedEdges, removedEdges
 }
 
@@ -546,4 +571,29 @@ func (g *Graph) AddSubGraph(ng *Graph) {
     for _, e := range edges {
 	g.AddUniEdge(e.Parent.Value, e.Child.Value, e.Weight)
     }
+}
+
+// @PASSED
+// Function ToplogicalSort returns the edges of a given tree sorted
+// topologically. It returns a slice of Edges that are sorted
+func (g *Graph) ToplogicalSort() []Edge {
+    var edges []Edge 
+    edges = make([]Edge, 0)
+    
+    if g.HasHead() {
+	head := g.GetHead().Value 
+	
+	parent := head
+	edges = append(edges, g.GetOutEdges(parent)...)
+	
+	children := g.GetChildren(parent)
+	for _, n := range children {
+	    sub := g.GetSubTree(n.Value)
+	    edges = append(edges, sub.ToplogicalSort()...)
+	}
+	
+    } else {
+	fmt.Println("No head is specified. ToplogicalSort cannot proceed")
+    }
+    return edges
 }
