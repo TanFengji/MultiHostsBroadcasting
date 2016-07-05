@@ -130,7 +130,6 @@ AllConnection.prototype.stopForwarding = function(peer){
 	var self = this;
 	console.log("remove stream");
 	this.connection[peer].p2pConnection.removeStream(self.stream);
-	this.connection[peer].p2pConnection.close();
 }
 
 //when receive an spd answer

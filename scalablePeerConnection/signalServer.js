@@ -7,6 +7,14 @@ var user = {};
 var room = {};
 var admin;
 var configuration;
+var taskQueue = [];
+var TaskEnum = {
+		STARTFORWARDING: "startForwarding",
+		STARTBROADCASTING: "startBroadcasting",
+		STOPFORWARDING: "stopForwarding"
+}
+
+var taskStatus = "free";
 
 var xirsys_details = {
 		ident : "qwerty",
@@ -209,29 +217,6 @@ status: "fail"
 		}
 	})
 
-//	start forwarding video
-	socket.on("startForwarding", function(userData){
-		try {
-			console.log(userData);
-			user[userData.parent].emit("startForwarding", userData);
-			user[userData.child].emit("startForwarding", userData);
-			//	console.log("User " + command[1] + " initialise connection to user " + command[2]);
-		} catch(e){
-			console.log(e);
-		}
-	})
-
-	//	stop forwarding video
-	socket.on("stopForwarding", function(userData){
-		try {
-			user[userData.parent].emit("stopForwarding", userData.child);
-			user[userData.child].emit("stopForwarding", userData.parent);
-			//	console.log("User " + command[1] + " initialise connection to user " + command[2]);
-		} catch(e){
-			console.log(e);
-		}
-	})
-
 //	a user send a message
 	socket.on("message", function(messageData){
 		socket.broadcast.to(socket.room).emit("message", messageData);
@@ -270,10 +255,45 @@ status: "fail"
 		});	
 	});
 
-	socket.on("startBroadcasting", function(hostData){
-		console.log("received hostData");
-		console.log(hostData);
-		user[hostData.host].emit("initCamera"); 
+	socket.on("task", function(task){
+		console.log("received task");
+		taskQueue.push(task);
+		if (taskStatus === "free"){
+			taskStatus = "busy";
+			processingTask(taskQueue.shift());
+		}
 	});
 
-})
+	socket.on("taskFinish", function(){
+		console.log("taskFinished");
+		if (taskQueue.length > 0){
+			task = taskQueue.shift();
+			processingTask(task);
+		} else {
+			taskStatus = "free";
+		}
+	});
+
+	function processingTask(task){
+		console.log(taskStatus);
+		console.log(task);
+		console.log(task.type);
+		switch (task.type){
+		case TaskEnum.STARTBROADCASTING:
+			user[task.host].emit("startBroadcasting"); 
+			break;
+
+			//start forwarding video
+		case TaskEnum.STARTFORWARDING:
+			user[task.parent].emit("startForwarding", task);
+			user[task.child].emit("startForwarding", task);
+			break;
+
+			//	stop forwarding video
+		case TaskEnum.STOPFORWARDING:
+			user[task.parent].emit("stopForwarding", task.child);
+			break;
+		}
+	}
+
+});

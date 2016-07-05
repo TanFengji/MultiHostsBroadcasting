@@ -133,7 +133,6 @@ AllConnection.prototype.stopForwarding = function(peer){
 	var self = this;
 	console.log("remove stream");
 	this.connection[peer].p2pConnection.removeStream(self.stream);
-	this.connection[peer].p2pConnection.close();
 }
 
 //when receive an spd answer
@@ -7809,11 +7808,6 @@ function WebRTC(server){
 		self.allConnection.initConnection(peer);
 	});
 
-	self.socket.on("initCamera", function(){
-		console.log("init camera");
-		self.allConnection.initCamera();
-	})
-
 //	delete peer connection when peer left
 	self.socket.on("deleteConnection", function(peerData){
 		console.log(peerData);
@@ -7826,16 +7820,22 @@ function WebRTC(server){
 		self.onMessage(messageData);
 	});
 
+	self.socket.on("startBroadcasting", function(){
+		self.onStartBroadcasting(function(){
+			self.sendTaskStatus();
+		});
+	})
+
 	self.socket.on("startForwarding", function(userData){
-		if (userData.parent === self.user){
-			self.addVideo(userData.child);
-		}else if (userData.child === self.user){
-			self.onAddVideo(userData.parent);
-		}
+		self.onStartForwarding(userData, function(){
+			self.sendTaskStatus();
+		});
 	});
 
 	self.socket.on("stopForwarding", function(peer){
-		self.allConnection.stopForwarding(peer);
+		self.onStopForwarding(peer, function(){
+			self.sendTaskStatus();
+		});
 	});
 
 	self.socket.on("localStream", function(localStream){
@@ -7911,14 +7911,6 @@ WebRTC.prototype.sendChatMessage = function(chatMessage){
 WebRTC.prototype.onMessage = function(messageData){
 }
 
-WebRTC.prototype.addVideo = function(peer){
-	this.allConnection.addVideo(peer);
-}
-
-WebRTC.prototype.onAddVideo = function(peer){
-	this.allConnection.onAddVideo(peer);
-}
-
 WebRTC.prototype.setIceServer = function(iceServers){
 	this.allConnection.setIceServer(iceServers);
 	console.log(iceServers);
@@ -7948,6 +7940,32 @@ WebRTC.prototype.clearTimeStamp = function(){
 
 WebRTC.prototype.setLocalStream = function(stream){
 	this.allConnection.setLocalStream(stream);
+}
+
+WebRTC.prototype.onStartBroadcasting = function(cb){
+	this.allConnection.initCamera();
+	cb();
+}
+
+WebRTC.prototype.onStartForwarding = function(userData, cb){
+	if (userData.parent === this.user){
+		console.log("addvideo");
+		this.allConnection.addVideo(userData.child);
+		cb();
+	}else if (userData.child === this.user){
+		console.log("onaddvideo");
+		this.allConnection.onAddVideo(userData.parent);
+	}
+}
+
+WebRTC.prototype.onStopForwarding = function(peer, cb){
+	this.allConnection.stopForwarding(peer);
+	cb();
+}
+
+WebRTC.prototype.sendTaskStatus = function(){
+	console.log("called");
+	this.socket.emit("taskFinish");
 }
 
 module.exports = WebRTC;
