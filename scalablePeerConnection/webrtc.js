@@ -112,9 +112,6 @@ function WebRTC(server){
 		});
 	});
 
-	self.socket.on("localStream", function(localStream){
-		self.setLocalStream(localStream.stream);
-	});
 }
 
 //find more details of following api in readme
@@ -210,10 +207,6 @@ WebRTC.prototype.clearTimeStamp = function(){
 	this.peerNo = 0;
 	this.connectionBuilt = 0;
 	this.latencyListSize = 0;
-}
-
-WebRTC.prototype.setLocalStream = function(stream){
-	this.allConnection.setLocalStream(stream);
 }
 
 WebRTC.prototype.onStartBroadcasting = function(cb){

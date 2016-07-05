@@ -120,12 +120,6 @@ AllConnection.prototype.onAddVideo = function(peer){
 	};
 }
 
-AllConnection.prototype.setLocalStream = function(stream){
-	console.log("set local stream in allconnection");
-	console.log(stream);
-	this.stream = stream;
-}
-
 AllConnection.prototype.stopForwarding = function(peer){
 	var self = this;
 	console.log("remove stream");

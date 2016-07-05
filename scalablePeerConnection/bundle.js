@@ -123,12 +123,6 @@ AllConnection.prototype.onAddVideo = function(peer){
 	};
 }
 
-AllConnection.prototype.setLocalStream = function(stream){
-	console.log("set local stream in allconnection");
-	console.log(stream);
-	this.stream = stream;
-}
-
 AllConnection.prototype.stopForwarding = function(peer){
 	var self = this;
 	console.log("remove stream");
@@ -7838,9 +7832,6 @@ function WebRTC(server){
 		});
 	});
 
-	self.socket.on("localStream", function(localStream){
-		self.setLocalStream(localStream.stream);
-	});
 }
 
 //find more details of following api in readme
@@ -7936,10 +7927,6 @@ WebRTC.prototype.clearTimeStamp = function(){
 	this.peerNo = 0;
 	this.connectionBuilt = 0;
 	this.latencyListSize = 0;
-}
-
-WebRTC.prototype.setLocalStream = function(stream){
-	this.allConnection.setLocalStream(stream);
 }
 
 WebRTC.prototype.onStartBroadcasting = function(cb){
