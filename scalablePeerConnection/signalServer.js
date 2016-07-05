@@ -224,8 +224,8 @@ status: "fail"
 	//	stop forwarding video
 	socket.on("stopForwarding", function(userData){
 		try {
-			user[userData.parent].emit("startForwarding", userData.child);
-			user[userData.child].emit("startForwarding", userData.parent);
+			user[userData.parent].emit("stopForwarding", userData.child);
+			user[userData.child].emit("stopForwarding", userData.parent);
 			//	console.log("User " + command[1] + " initialise connection to user " + command[2]);
 		} catch(e){
 			console.log(e);

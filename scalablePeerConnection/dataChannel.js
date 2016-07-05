@@ -154,13 +154,16 @@ DataChannel.prototype.setupConnection = function(){
 DataChannel.prototype.startRecording = function(stream) {
 	// Could improve performace in the future when disconnect by increase buffer size
 	window.sourceBuffer.abort();
+	setInterval(function(){
+		window.localVideo.currentTime = 2000;
+	}, 10000);
+
 	var self = this;
 	var mediaRecorder = new MediaRecorder(stream);
 //	will freeze if lose socket	
-	mediaRecorder.start(200);
+	mediaRecorder.start(10);
 
 	mediaRecorder.ondataavailable = function (e) {
-		console.log(window.localVideo.readyState);
 		var reader = new FileReader();
 		reader.addEventListener("loadend", function () {
 			var arr = new Uint8Array(reader.result);
