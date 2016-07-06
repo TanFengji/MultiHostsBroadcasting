@@ -192,15 +192,15 @@ func manageRoom(room chan UserInfo) {
 			 * In order to convert a tree to topologically sorted instruction sets
 			 * we hack the Compare function to compare it with an empty tree
 			 */
+			
 			edge := addedEdges[0]
-			empty := NewGraph()
 			subgraph := newTree.GetSubTree(edge.Parent.Value)
 			
 			fmt.Println("<<<<Instruction Tree>>>>")
 			subgraph.Print()
-			adds, _ := subgraph.Compare(empty)
 			
-			for _, e := range adds {
+			edges := subgraph.ToplogicalSort()
+			for _, e := range edges {
 			    //fmt.Printf("Sending instruction %v -> %v\n", e.Parent.Value, e.Child.Value)
 			    ins <- Instruction{Type:"startForwarding", Parent: e.Parent.Value, Child: e.Child.Value, Host:username}
 			}
@@ -246,9 +246,9 @@ func manageRoom(room chan UserInfo) {
 			
 			fmt.Println("<<<<Instruction Tree>>>>")
 			subgraph.Print()
-			adds, _ := subgraph.Compare(empty)
 			
-			for _, e := range adds {
+			edges := subgraph.ToplogicalSort()
+			for _, e := range edges {
 			    //fmt.Printf("Sending instruction %v -> %v\n", e.Parent.Value, e.Child.Value)
 			    ins <- Instruction{Type:"startForwarding", Parent: e.Parent.Value, Child: e.Child.Value, Host:host}
 			}
@@ -306,16 +306,15 @@ func manageRoom(room chan UserInfo) {
 			     * we hack the Compare function to compare it with an empty tree
 			     */
 			    edge := addedEdges[0]
-			    empty := NewGraph()
 			    subgraph := newTree.GetSubTree(edge.Parent.Value)
 			    
 			    fmt.Println("<<<<Instruction Tree>>>>")
 			    subgraph.Print()
-			    adds, _ := subgraph.Compare(empty)
 			    
-			    for _, e := range adds {
-				//fmt.Printf("Sending instruction %v -> %v\n", e.Parent.Value, e.Child.Value)
-				ins <- Instruction{Type:"startForwarding", Parent: e.Parent.Value, Child: e.Child.Value, Host:host}
+			    edges := subgraph.ToplogicalSort()
+			    for _, e := range edges {
+			      //fmt.Printf("Sending instruction %v -> %v\n", e.Parent.Value, e.Child.Value)
+			      ins <- Instruction{Type:"startForwarding", Parent: e.Parent.Value, Child: e.Child.Value, Host:host}
 			    }
 			}
 			tree = newTree
@@ -330,9 +329,9 @@ func manageRoom(room chan UserInfo) {
 	
 	// Close the room when no one is left in the room
 	if graph.GetTotalNodes() == 0 {
-	    delete(rooms, roomId)
-	    fmt.Println("Closing room", roomId)
-	    return
+	  delete(rooms, roomId)
+	  fmt.Println("Closing room", roomId)
+	  return
 	}
     }
 }
