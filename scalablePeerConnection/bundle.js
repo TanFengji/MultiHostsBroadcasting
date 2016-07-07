@@ -41,7 +41,7 @@ AllConnection.prototype.initCamera = function(){
 	var self = this;
 
 	if (self.indicator.hasUserMedia()) {
-		navigator.getUserMedia({ video: true, audio: true }, function(stream){
+		navigator.getUserMedia({ video: true, audio: false }, function(stream){
 			self.stream = stream;
 			self.localVideo.src = window.URL.createObjectURL(stream);
 		}, function (error) {
@@ -101,15 +101,15 @@ AllConnection.prototype.addVideo = function(peer){
 	this.connection[peer].addVideo(self.stream);
 }
 
-AllConnection.prototype.onAddVideo = function(peer){
+AllConnection.prototype.onAddVideo = function(peer, cb){
 	var self = this;
 	this.connection[peer].dataChannel.setupConnectionWithVideo = function(){
-		console.log("hello");
-		console.log(self);
+
 		self.connection[peer].p2pConnection.onaddstream = function (e) {
+			self.localVideo2.src = window.URL.createObjectURL(e.stream);
 			self.setLocalStream(e.stream);
 			self.startRecording(e.stream);
-			self.localVideo2.src = window.URL.createObjectURL(e.stream);
+			cb();
 		};
 	}
 }
@@ -150,7 +150,6 @@ AllConnection.prototype.startRecording = function(stream) {
 
 AllConnection.prototype.stopForwarding = function(peer){
 	var self = this;
-	console.log("remove stream");
 	this.connection[peer].p2pConnection.removeStream(self.stream);
 }
 
@@ -161,9 +160,6 @@ AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
 
 //when receive an ice candidate
 AllConnection.prototype.onCandidate = function(iceCandidate){
-	console.log("remote of icecandidate");
-	console.log(iceCandidate.remote);
-	console.log(this.connection[iceCandidate.remote]);
 	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
 }
 
@@ -253,15 +249,11 @@ DataChannel.prototype.open = function(){
 			switch(message.type){
 
 			case MessageEnum.OFFER:
-				console.log("received offer in datachannel");
-				console.log(message);
 				self.setupConnectionWithVideo();
 				self.onOffer(message);
 				break;
 
 			case MessageEnum.ANSWER:
-				console.log("received answer in datachannel");
-				console.log(message);
 				self.onAnswer(message);
 				break;
 
@@ -304,12 +296,11 @@ DataChannel.prototype.onOffer = function(sdpOffer){
 	sdpAnswer = new RTCSessionDescription(sdpOffer);
 	this.p2pConnection.setRemoteDescription(sdpOffer, function(){
 		self.p2pConnection.createAnswer(function (answer) {
+			
 			answer.sdp = answer.sdp.replace(/a=sendrecv/g,"a=recvonly");
 			self.p2pConnection.setLocalDescription(answer);
 			answer = JSON.stringify(answer);
 			self.send(answer);
-			console.log(self.p2pConnection.localDescription);
-			console.log(self.p2pConnection.remoteDescription);
 		},function(error){
 			console.log(error);
 		});
@@ -320,8 +311,6 @@ DataChannel.prototype.onOffer = function(sdpOffer){
 DataChannel.prototype.onAnswer = function(sdpAnswer){
 	sdpAnswer = new RTCSessionDescription(sdpAnswer);
 	this.p2pConnection.setRemoteDescription(sdpAnswer,function(){}, function(){});
-	console.log(this.p2pConnection.localDescription);
-	console.log(this.p2pConnection.remoteDescription);
 }
 
 DataChannel.prototype.onTimeStamp = function(timeStamp){
@@ -7690,8 +7679,6 @@ PeerConnection.prototype.receiveOffer = function(sdpOffer, cb){
 		self.p2pConnection.createAnswer(function (answer) {
 			//answer.sdp = answer.sdp.replace(/a=sendrecv/g,"a=recvonly");
 			self.p2pConnection.setLocalDescription(answer);
-			console.log(self.p2pConnection.localDescription);
-			console.log(self.p2pConnection.remoteDescription);
 			cb(answer);
 		},function(error){
 			console.log(error);
@@ -7703,14 +7690,20 @@ PeerConnection.prototype.receiveOffer = function(sdpOffer, cb){
 PeerConnection.prototype.receiveAnswer = function(sdpAnswer){
 	sdpAnswer = new RTCSessionDescription(sdpAnswer);
 	this.p2pConnection.setRemoteDescription(sdpAnswer,function(){}, function(){});
-	console.log(this.p2pConnection.localDescription);
-	console.log(this.p2pConnection.remoteDescription);
+
 }
 
 //add video
 PeerConnection.prototype.addVideo = function(stream){
 	var self = this;
-	this.p2pConnection.addStream(stream);
+
+	if (this.p2pConnection.getLocalStreams().length === 0){
+		this.p2pConnection.addStream(stream);
+	} else {
+		this.p2pConnection.removeStream(self.p2pConnection.getLocalStreams()[0]);
+		this.p2pConnection.addStream(stream);
+	}
+
 	this.makeOffer( function(sdpOffer){
 		sdpOffer.sdp = sdpOffer.sdp.replace(/a=sendrecv/g,"a=sendonly");
 		self.p2pConnection.setLocalDescription(sdpOffer,function(){}, function(){});
@@ -7769,11 +7762,6 @@ function WebRTC(server){
 
 		self.latencyListSize++ ; 
 		if (self.latencyListSize === self.peerNo){
-			for (var a in self.latencyList){
-				console.log(a);
-				console.log("Peer: " + self.latencyList[a].peer);
-				console.log("Latency: " + self.latencyList[a].latency);
-			}
 
 			self.socket.emit("newUser", {
 				type: "newUser",
@@ -7805,7 +7793,6 @@ function WebRTC(server){
 
 //	receive an ice candidate
 	self.socket.on("candidate", function(iceCandidate) {
-		console.log("receive an ice candidate");
 		self.allConnection.onCandidate(iceCandidate);
 	});
 
@@ -7816,13 +7803,11 @@ function WebRTC(server){
 
 //	delete peer connection when peer left
 	self.socket.on("deleteConnection", function(peerData){
-		console.log(peerData);
 		self.allConnection.deleteConnection(peerData.peer);
 		self.peer = null;
 	});
 
 	self.socket.on("message", function(messageData){
-		console.log("received message");
 		self.onMessage(messageData);
 	});
 
@@ -7838,10 +7823,8 @@ function WebRTC(server){
 		});
 	});
 
-	self.socket.on("stopForwarding", function(peer){
-		self.onStopForwarding(peer, function(){
-			self.sendTaskStatus();
-		});
+	self.socket.on("stopForwarding", function(task){
+		self.onStopForwarding(task);
 	});
 
 }
@@ -7895,7 +7878,7 @@ WebRTC.prototype.joinRoom = function(roomId, successCallback, failCallback) {
 			for (var peer in self.peerList){
 				self.allConnection.initConnection(peer);
 			}
-			console.log("finish");
+
 			successCallback();
 		} else if (joinRoomResponse.status === "fail") {
 			failCallback();
@@ -7918,12 +7901,11 @@ WebRTC.prototype.onMessage = function(messageData){
 
 WebRTC.prototype.setIceServer = function(iceServers){
 	this.allConnection.setIceServer(iceServers);
-	console.log(iceServers);
 }
 
 WebRTC.prototype.sendTimeStamp = function(){
 	var self = this;
-	console.log("send time stamp");
+
 	for (var peer in self.allConnection.connection){
 		self.peerNo++;
 		var time = Date.now();
@@ -7952,20 +7934,25 @@ WebRTC.prototype.onStartForwarding = function(userData, cb){
 	if (userData.parent === this.user){
 		console.log("addvideo");
 		this.allConnection.addVideo(userData.child);
-		cb();
 	}else if (userData.child === this.user){
 		console.log("onaddvideo");
-		this.allConnection.onAddVideo(userData.parent);
+		this.allConnection.onAddVideo(userData.parent, function(){
+			cb();
+		});
 	}
 }
 
-WebRTC.prototype.onStopForwarding = function(peer, cb){
-	this.allConnection.stopForwarding(peer);
-	cb();
+WebRTC.prototype.onStopForwarding = function(task){
+	if (task.child === this.user){
+		this.allConnection.stopForwarding(task.parent);
+		self.sendTaskStatus();
+	}else {
+		this.allConnection.stopForwarding(task.child);
+	}
 }
 
 WebRTC.prototype.sendTaskStatus = function(){
-	console.log("called");
+	console.log(Date.now());
 	this.socket.emit("taskFinish");
 }
 

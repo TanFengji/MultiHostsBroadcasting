@@ -38,15 +38,11 @@ DataChannel.prototype.open = function(){
 			switch(message.type){
 
 			case MessageEnum.OFFER:
-				console.log("received offer in datachannel");
-				console.log(message);
 				self.setupConnectionWithVideo();
 				self.onOffer(message);
 				break;
 
 			case MessageEnum.ANSWER:
-				console.log("received answer in datachannel");
-				console.log(message);
 				self.onAnswer(message);
 				break;
 
@@ -89,12 +85,11 @@ DataChannel.prototype.onOffer = function(sdpOffer){
 	sdpAnswer = new RTCSessionDescription(sdpOffer);
 	this.p2pConnection.setRemoteDescription(sdpOffer, function(){
 		self.p2pConnection.createAnswer(function (answer) {
+			
 			answer.sdp = answer.sdp.replace(/a=sendrecv/g,"a=recvonly");
 			self.p2pConnection.setLocalDescription(answer);
 			answer = JSON.stringify(answer);
 			self.send(answer);
-			console.log(self.p2pConnection.localDescription);
-			console.log(self.p2pConnection.remoteDescription);
 		},function(error){
 			console.log(error);
 		});
@@ -105,8 +100,6 @@ DataChannel.prototype.onOffer = function(sdpOffer){
 DataChannel.prototype.onAnswer = function(sdpAnswer){
 	sdpAnswer = new RTCSessionDescription(sdpAnswer);
 	this.p2pConnection.setRemoteDescription(sdpAnswer,function(){}, function(){});
-	console.log(this.p2pConnection.localDescription);
-	console.log(this.p2pConnection.remoteDescription);
 }
 
 DataChannel.prototype.onTimeStamp = function(timeStamp){

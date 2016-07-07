@@ -38,7 +38,7 @@ AllConnection.prototype.initCamera = function(){
 	var self = this;
 
 	if (self.indicator.hasUserMedia()) {
-		navigator.getUserMedia({ video: true, audio: true }, function(stream){
+		navigator.getUserMedia({ video: true, audio: false }, function(stream){
 			self.stream = stream;
 			self.localVideo.src = window.URL.createObjectURL(stream);
 		}, function (error) {
@@ -98,15 +98,15 @@ AllConnection.prototype.addVideo = function(peer){
 	this.connection[peer].addVideo(self.stream);
 }
 
-AllConnection.prototype.onAddVideo = function(peer){
+AllConnection.prototype.onAddVideo = function(peer, cb){
 	var self = this;
 	this.connection[peer].dataChannel.setupConnectionWithVideo = function(){
-		console.log("hello");
-		console.log(self);
+
 		self.connection[peer].p2pConnection.onaddstream = function (e) {
-			self.setLocalStream(e.stream);
-			self.startRecording(e.stream);
 			self.localVideo2.src = window.URL.createObjectURL(e.stream);
+			self.setLocalStream(e.stream);
+			//self.startRecording(e.stream);
+			cb();
 		};
 	}
 }
@@ -147,7 +147,6 @@ AllConnection.prototype.startRecording = function(stream) {
 
 AllConnection.prototype.stopForwarding = function(peer){
 	var self = this;
-	console.log("remove stream");
 	this.connection[peer].p2pConnection.removeStream(self.stream);
 }
 
@@ -158,9 +157,6 @@ AllConnection.prototype.onAnswer = function(sdpAnswer, cb){
 
 //when receive an ice candidate
 AllConnection.prototype.onCandidate = function(iceCandidate){
-	console.log("remote of icecandidate");
-	console.log(iceCandidate.remote);
-	console.log(this.connection[iceCandidate.remote]);
 	this.connection[iceCandidate.remote].addCandidate(iceCandidate);
 }
 

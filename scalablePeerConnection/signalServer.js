@@ -275,6 +275,7 @@ status: "fail"
 	});
 
 	function processingTask(task){
+		console.log(Date.now());
 		console.log(taskStatus);
 		console.log(task);
 		console.log(task.type);
@@ -291,7 +292,10 @@ status: "fail"
 
 			//	stop forwarding video
 		case TaskEnum.STOPFORWARDING:
-			user[task.parent].emit("stopForwarding", task.child);
+			user[task.parent].emit("stopForwarding", task);
+			user[task.child].emit("stopForwarding", task);
+			/*user[task.parent].emit("stopForwarding", task.child);
+			user[task.child].emit("stopForwarding", task.parent);*/
 			break;
 		}
 	}

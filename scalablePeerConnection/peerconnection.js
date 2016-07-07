@@ -60,8 +60,6 @@ PeerConnection.prototype.receiveOffer = function(sdpOffer, cb){
 		self.p2pConnection.createAnswer(function (answer) {
 			//answer.sdp = answer.sdp.replace(/a=sendrecv/g,"a=recvonly");
 			self.p2pConnection.setLocalDescription(answer);
-			console.log(self.p2pConnection.localDescription);
-			console.log(self.p2pConnection.remoteDescription);
 			cb(answer);
 		},function(error){
 			console.log(error);
@@ -73,14 +71,20 @@ PeerConnection.prototype.receiveOffer = function(sdpOffer, cb){
 PeerConnection.prototype.receiveAnswer = function(sdpAnswer){
 	sdpAnswer = new RTCSessionDescription(sdpAnswer);
 	this.p2pConnection.setRemoteDescription(sdpAnswer,function(){}, function(){});
-	console.log(this.p2pConnection.localDescription);
-	console.log(this.p2pConnection.remoteDescription);
+
 }
 
 //add video
 PeerConnection.prototype.addVideo = function(stream){
 	var self = this;
-	this.p2pConnection.addStream(stream);
+
+	if (this.p2pConnection.getLocalStreams().length === 0){
+		this.p2pConnection.addStream(stream);
+	} else {
+		this.p2pConnection.removeStream(self.p2pConnection.getLocalStreams()[0]);
+		this.p2pConnection.addStream(stream);
+	}
+
 	this.makeOffer( function(sdpOffer){
 		sdpOffer.sdp = sdpOffer.sdp.replace(/a=sendrecv/g,"a=sendonly");
 		self.p2pConnection.setLocalDescription(sdpOffer,function(){}, function(){});

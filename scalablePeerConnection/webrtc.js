@@ -39,11 +39,6 @@ function WebRTC(server){
 
 		self.latencyListSize++ ; 
 		if (self.latencyListSize === self.peerNo){
-			for (var a in self.latencyList){
-				console.log(a);
-				console.log("Peer: " + self.latencyList[a].peer);
-				console.log("Latency: " + self.latencyList[a].latency);
-			}
 
 			self.socket.emit("newUser", {
 				type: "newUser",
@@ -75,7 +70,6 @@ function WebRTC(server){
 
 //	receive an ice candidate
 	self.socket.on("candidate", function(iceCandidate) {
-		console.log("receive an ice candidate");
 		self.allConnection.onCandidate(iceCandidate);
 	});
 
@@ -86,13 +80,11 @@ function WebRTC(server){
 
 //	delete peer connection when peer left
 	self.socket.on("deleteConnection", function(peerData){
-		console.log(peerData);
 		self.allConnection.deleteConnection(peerData.peer);
 		self.peer = null;
 	});
 
 	self.socket.on("message", function(messageData){
-		console.log("received message");
 		self.onMessage(messageData);
 	});
 
@@ -108,10 +100,8 @@ function WebRTC(server){
 		});
 	});
 
-	self.socket.on("stopForwarding", function(peer){
-		self.onStopForwarding(peer, function(){
-			self.sendTaskStatus();
-		});
+	self.socket.on("stopForwarding", function(task){
+		self.onStopForwarding(task);
 	});
 
 }
@@ -165,7 +155,7 @@ WebRTC.prototype.joinRoom = function(roomId, successCallback, failCallback) {
 			for (var peer in self.peerList){
 				self.allConnection.initConnection(peer);
 			}
-			console.log("finish");
+
 			successCallback();
 		} else if (joinRoomResponse.status === "fail") {
 			failCallback();
@@ -188,12 +178,11 @@ WebRTC.prototype.onMessage = function(messageData){
 
 WebRTC.prototype.setIceServer = function(iceServers){
 	this.allConnection.setIceServer(iceServers);
-	console.log(iceServers);
 }
 
 WebRTC.prototype.sendTimeStamp = function(){
 	var self = this;
-	console.log("send time stamp");
+
 	for (var peer in self.allConnection.connection){
 		self.peerNo++;
 		var time = Date.now();
@@ -222,20 +211,25 @@ WebRTC.prototype.onStartForwarding = function(userData, cb){
 	if (userData.parent === this.user){
 		console.log("addvideo");
 		this.allConnection.addVideo(userData.child);
-		cb();
 	}else if (userData.child === this.user){
 		console.log("onaddvideo");
-		this.allConnection.onAddVideo(userData.parent);
+		this.allConnection.onAddVideo(userData.parent, function(){
+			cb();
+		});
 	}
 }
 
-WebRTC.prototype.onStopForwarding = function(peer, cb){
-	this.allConnection.stopForwarding(peer);
-	cb();
+WebRTC.prototype.onStopForwarding = function(task){
+	if (task.child === this.user){
+		this.allConnection.stopForwarding(task.parent);
+		self.sendTaskStatus();
+	}else {
+		this.allConnection.stopForwarding(task.child);
+	}
 }
 
 WebRTC.prototype.sendTaskStatus = function(){
-	console.log("called");
+	console.log(Date.now());
 	this.socket.emit("taskFinish");
 }
 

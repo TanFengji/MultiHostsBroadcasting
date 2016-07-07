@@ -16,7 +16,11 @@ video {
 }
 
 .invisibleContainer {
-display: none;
+	position: relative;
+	display: block;
+	margin: 0 auto;
+	width: 200px;
+	height: 200px;
 }
 
 #info {
@@ -42,18 +46,22 @@ display: none;
 			type="text" id="message" onkeypress="sendMessage(event)" /> <br />
 		Feedback: <br /> <input type="text" id="feedback" /><br />
 		<button type="button" onclick="addVideo()">Add video</button>
-		<a button type="button" id = "download">Going to be the Download link</button></a>
-		Information:
+		<a button type="button" id="download">Going to be the Download
+			link
+			</button>
+		</a> Information:
 		<div id="info"></div>
 	</form>
 
 	<title>p2p scalablePeerConnection</title>
 
 	<div class="container">
-		<video id="localVideo" width="300" height="300" preload="metadata" autoplay></video>
+		<video id="localVideo" width="300" height="300" preload="metadata"
+			autoplay></video>
 	</div>
 	<div class="invisibleContainer">
-		<video id="localVideo2" width="300" height="300" preload="metadata" autoplay></video>
+		<video id="localVideo2" width="300" height="300" preload="metadata"
+			autoplay></video>
 	</div>
 
 	<!--<script src="node_modules/socket.io-client/socket.io.js"></script>-->
