@@ -79,8 +79,10 @@ PeerConnection.prototype.addVideo = function(stream){
 	var self = this;
 
 	if (this.p2pConnection.getLocalStreams().length === 0){
+		console.log("add stream");
 		this.p2pConnection.addStream(stream);
 	} else {
+		console.log("delete stream and add stream");
 		this.p2pConnection.removeStream(self.p2pConnection.getLocalStreams()[0]);
 		this.p2pConnection.addStream(stream);
 	}

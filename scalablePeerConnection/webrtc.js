@@ -95,9 +95,7 @@ function WebRTC(server){
 	})
 
 	self.socket.on("startForwarding", function(userData){
-		self.onStartForwarding(userData, function(){
-			self.sendTaskStatus();
-		});
+		self.onStartForwarding(userData);
 	});
 
 	self.socket.on("stopForwarding", function(task){
@@ -208,13 +206,14 @@ WebRTC.prototype.onStartBroadcasting = function(cb){
 }
 
 WebRTC.prototype.onStartForwarding = function(userData, cb){
+	var self = this;
 	if (userData.parent === this.user){
 		console.log("addvideo");
 		this.allConnection.addVideo(userData.child);
 	}else if (userData.child === this.user){
 		console.log("onaddvideo");
 		this.allConnection.onAddVideo(userData.parent, function(){
-			cb();
+			self.sendTaskStatus();
 		});
 	}
 }
